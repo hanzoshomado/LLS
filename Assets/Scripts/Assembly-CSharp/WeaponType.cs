@@ -6,8 +6,8 @@ public enum WeaponType
 	Rifle = 3,
 	Reindeer = 4,
 
-	
 
 	// COOL weapons
-	Pistol = 5
+	Pistol = 5,
+	LightningGun = 6
 }

@@ -12,12 +12,20 @@ public class RangedWeaponStats
     public float TimeBetweenAttacks;
     public float MovementMultiplier;
     public Transform MuzzlePoint;
+    public ParticleSystem MuzzleFlash;
+    public float Range;
+    public LineRenderer Beam;
+    public float AmmoDrainPerSecond;
+    public float DamagePerSecond;
 }
 
 public class SantaCharacterController : EntityEventListener<ISantaState>
 {
 	[Header("Core References")]
 	public Camera PlayerCamera;
+	private float _baseFOV;
+	public float SprintFOVBoost = 10f;
+	public float FOVLerpSpeed = 8f;
 	public WeaponModel[] WeaponModels;
 	public Animator UpperAnimator;
 	public Animator LowerAnimator;
@@ -100,6 +108,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	[Header("Pistol")]
 	public RangedWeaponStats PistolStats;
 
+	[Header("Lightning")]
+	public RangedWeaponStats LightningStats;
+	public GameObject LightningBeamInstance;
+
 	[Header("Win Animation")]
 	public float WinCameraRotationMultiplier;
 
@@ -136,6 +148,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private float _lastGroundLandTime;
 	private bool _wasOnGround;
 	private bool _isPlayingWinAnimation;
+	private float _lastPistolFireInputTime = -999f;
+	private bool _isFiringLightning;
+	private bool _wasFiringLightningLastFrame;
+	private float _lightningAmmoAccumulator;
+	private float _lightningDamageAccumulator;
 
 	public GroundType GetGroundType()
 	{
@@ -147,6 +164,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		PlayerCamera.gameObject.SetActive(false);
 		_cameraMeleePosition = PlayerCamera.transform.localPosition;
 		_cameraMeleeLocalEulerAngles = PlayerCamera.transform.localEulerAngles;
+	    _baseFOV = PlayerCamera.fieldOfView;
 	}
 
 	private void Start()
@@ -244,6 +262,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void OnIsAimingChanged()
 	{
+		   Debug.Log("OnIsAimingChanged fired | HasBeenUnderLocalControl: " + HasBeenUnderLocalControl() + " | state.IsAiming: " + base.state.IsAiming);
 		if (!HasBeenUnderLocalControl())
 		{
 			setIsAiming(base.state.IsAiming);
@@ -255,14 +274,32 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		return _isInAimState;
 	}
 
+ 
 	private void setIsAiming(bool value)
 	{
 		bool isInAimState = _isInAimState;
 		_isInAimState = value;
-		UpperAnimator.SetBool("IsAiming", _isInAimState);
+
+		 Debug.Log("setIsAiming called | value: " + value + " | HasLightningGun: " + HasLightningGun());
+
+		if (HasLightningGun())
+		{
+			UpperAnimator.SetBool("IsFiringLightning", _isInAimState);
+			        Debug.Log("Set IsFiringLightning to " + _isInAimState);
+		}
+		else
+		{
+			   UpperAnimator.SetBool("IsAiming", _isInAimState);
+			UpperAnimator.SetBool("IsAiming", _isInAimState);
+		}
+
 		if (!HasBeenUnderLocalControl())
 		{
 			return;
+		}
+		if (HasLightningGun())
+		{
+			return; // no camera zoom for Lightning Gun
 		}
 		if (!isInAimState && _isInAimState)
 		{
@@ -295,6 +332,8 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		UpperAnimator.SetBool("HasCrossbow", equippedWeapon == WeaponType.Crossbow);
 		UpperAnimator.SetBool("HasReindeer", equippedWeapon == WeaponType.Reindeer);
 		UpperAnimator.SetBool("HasPistol", equippedWeapon == WeaponType.Pistol);
+		UpperAnimator.SetBool("HasLightningGun", equippedWeapon == WeaponType.LightningGun);
+		UpperAnimator.SetBool("IsUnarmed", equippedWeapon == WeaponType.None);
 		LowerAnimator.SetBool("HasReindeer", equippedWeapon == WeaponType.Reindeer);
 		if (HasBeenUnderLocalControl())
 		{
@@ -556,6 +595,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return PistolStats.MovementMultiplier;
 		}
+	    if (HasLightningGun())
+		{
+			return LightningStats.MovementMultiplier;
+		}
 
 		return 1f;
 	}
@@ -705,7 +748,18 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void ExecuteAttackCommands(PlayerMoveCommand cmd)
 	{
-		bool flag = cmd.Input.Attack2Held && HasCrossbow();
+		_isFiringLightning = HasLightningGun() && cmd.Input.Attack1Held;
+
+		
+		if (HasPistol() && cmd.Input.Attack1Held)
+		{
+			_lastPistolFireInputTime = Time.time;
+		}
+		bool isFiring = HasPistol() && (Time.time - _lastPistolFireInputTime < 0.15f);
+		UpperAnimator.SetBool("IsFiringPistol", isFiring);
+		Debug.Log("Frame: " + Time.frameCount + " | Attack1Held: " + cmd.Input.Attack1Held + " | IsFiringPistol: " + isFiring);
+
+		bool flag = (cmd.Input.Attack2Held && HasCrossbow()) || (cmd.Input.Attack1Held && HasLightningGun());
 		if (flag && !base.state.IsAiming)
 		{
 			if (base.entity.IsOwner())
@@ -783,11 +837,94 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void spawnPistolBullet(int commandServerFrame)
 	{
-		 Vector3 spawnPosition = PistolStats.MuzzlePoint.position + PistolStats.MuzzlePoint.forward * PistolStats.SpawnDistance;
+		Vector3 spawnPosition = PistolStats.MuzzlePoint.position + PistolStats.MuzzlePoint.forward * PistolStats.SpawnDistance;
+
+		if (PistolStats.MuzzleFlash != null)
+		{
+			PistolStats.MuzzleFlash.Play();
+		}
+
 		BoltEntity boltEntity = BoltNetwork.Instantiate(MakePrefabId(12));
 		boltEntity.GetComponent<CrossbowProjectile>().Intialize(this, base.state.ExecutingAttackID, spawnPosition, AimCameraPosition.eulerAngles, commandServerFrame);
 	}
 
+	private void UpdateLightningBeam(bool isFiring)
+	{
+		if (!isFiring)
+		{
+			if (LightningBeamInstance != null)
+			{
+				LightningBeamInstance.SetActive(false);
+			}
+			_wasFiringLightningLastFrame = false;
+			_lightningAmmoAccumulator = 0f;
+			_lightningDamageAccumulator = 0f;
+			return;
+		}
+
+		if (LightningBeamInstance == null || LightningStats.MuzzlePoint == null)
+		{
+			return;
+		}
+
+		if (base.entity.IsOwner())
+		{
+			if (base.state.CurrentWeaponAmmo <= 0)
+			{
+				base.state.EquippedWeapon = 0;
+				_wasFiringLightningLastFrame = false;
+				return;
+			}
+		}
+
+		if (!_wasFiringLightningLastFrame)
+		{
+			LightningBeamInstance.SetActive(true);
+			ParticleSystem ps = LightningBeamInstance.GetComponent<ParticleSystem>();
+			if (ps != null)
+			{
+				ps.Play();
+			}
+		}
+		_wasFiringLightningLastFrame = true;
+
+		Vector3 origin = LightningStats.MuzzlePoint.position;
+		Vector3 direction = AimCameraPosition.forward;
+
+		RaycastHit hit;
+		if (Physics.Raycast(origin, direction, out hit, LightningStats.Range))
+		{
+			if (base.entity.IsOwner())
+			{
+				SantaCharacterController target = hit.collider.GetComponentInParent<SantaCharacterController>();
+				if (target != null)
+				{
+					_lightningDamageAccumulator += LightningStats.DamagePerSecond * Time.deltaTime;
+					if (_lightningDamageAccumulator >= 1f)
+					{
+						int wholeDamage = Mathf.FloorToInt(_lightningDamageAccumulator);
+						target.TryTakeDamageFromAttack(this, wholeDamage, direction, base.state.ExecutingAttackID, WeaponType.LightningGun, hit.point);
+						_lightningDamageAccumulator -= wholeDamage;
+					}
+				}
+			}
+		}
+
+		if (base.entity.IsOwner())
+		{
+			_lightningAmmoAccumulator += LightningStats.AmmoDrainPerSecond * Time.deltaTime;
+			if (_lightningAmmoAccumulator >= 1f)
+			{
+				int wholeAmmoToRemove = Mathf.FloorToInt(_lightningAmmoAccumulator);
+				base.state.CurrentWeaponAmmo = Mathf.Max(0, base.state.CurrentWeaponAmmo - wholeAmmoToRemove);
+				_lightningAmmoAccumulator -= wholeAmmoToRemove;
+			}
+		}
+
+		// just follow the muzzle, no stretching/scaling
+		LightningBeamInstance.transform.position = origin;
+		LightningBeamInstance.transform.rotation = Quaternion.LookRotation(direction);
+	}
 	private float getTimeBetweenCurrentWeaponAttacks()
 	{
 		if (HasSword())
@@ -801,6 +938,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		if(HasPistol())
 		{
 			 return PistolStats.TimeBetweenAttacks;
+		}
+		if (HasLightningGun())
+		{
+			return LightningStats.TimeBetweenAttacks;
 		}
 		return TimeBetweenFistAttacks;
 	}
@@ -819,11 +960,13 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		_lastAttackIDRendered = attackID;
 		if (HasCrossbow())
 		{
-			UpperAnimator.Play("Fire_Crossbow", 0, 0f);
+			UpperAnimator.SetTrigger("FireCrossBow");
 		}
-		if (HasPistol())
+		else if (HasPistol())
 		{
-			UpperAnimator.Play("Fire_Crossbow", 0, 0f); // PlaceHolder
+			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.PistolFire, UpperAnimator.transform);
+			Debug.Log("Setting FirePistol trigger");
+			UpperAnimator.SetTrigger("FirePistol");
 		}
 		else if (!HasAnyEquippedWeapon())
 		{
@@ -912,6 +1055,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	{
 		return base.state.EquippedWeapon == (int)WeaponType.Pistol;
 	}
+	public bool HasLightningGun()
+	{
+		return base.state.EquippedWeapon == (int)WeaponType.LightningGun;
+	}
 
 	public bool HasReindeer()
 	{
@@ -927,6 +1074,14 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private void Update()
 	{
 		PollKeys(true);
+
+		if (HasBeenUnderLocalControl())
+		{
+			float targetFOV = base.state.IsSprinting ? _baseFOV + SprintFOVBoost : _baseFOV;
+			PlayerCamera.fieldOfView = Mathf.Lerp(PlayerCamera.fieldOfView, targetFOV, Time.deltaTime * FOVLerpSpeed);
+
+			UpdateLightningBeam(_isFiringLightning);
+		}
 	}
 
 	private void PollKeys(bool mouse)

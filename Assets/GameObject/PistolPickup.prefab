@@ -29,8 +29,8 @@ Transform:
   m_GameObject: {fileID: 1709254077376921}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 5, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalScale: {x: 3, y: 3, z: 3}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4061268324235159}
@@ -48,7 +48,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 984d7df08dccf8dccae5c2a4b3bacee3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  WeaponType: 11
+  WeaponType: 5
   PressKeyPrefab: {fileID: 114703437598541787, guid: 0784777f278d66a4cbc389126e27ecf9,
     type: 3}
   PickupRange: 5
@@ -66,7 +66,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   RandomStartRotation: {x: 0, y: 0, z: 0}
-  RotationSpeed: {x: 0, y: 90, z: 0}
+  RotationSpeed: {x: 0, y: 45, z: 0}
   IsRandom: 0
 --- !u!95 &95099118695303065
 Animator:
@@ -102,7 +102,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _sceneGuid: 65d0bc17-d4b3-4395-96e9-cc9ecc224b82
-  _serializerGuid: a7c3e91f-2b6d-4c8a-9f1e-6d4b8a3c7e92
+  _serializerGuid: df703dc9-6943-4a2a-9741-cbb99899ea93
   _prefabId: 13
   _updateRate: 1
   _autoFreezeProxyFrames: 0
@@ -226,8 +226,8 @@ Transform:
   m_GameObject: {fileID: 1730242686860875}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: 0.6665988, y: 0.96, z: -1.8787171}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: 0, y: 3, z: 0}
+  m_LocalScale: {x: 2, y: 2, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4589667821646929}

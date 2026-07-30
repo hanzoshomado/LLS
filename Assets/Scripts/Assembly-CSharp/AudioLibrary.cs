@@ -40,6 +40,8 @@ public class AudioLibrary : Singleton<AudioLibrary>
 
 	public AudioClipDefinition[] CrossbowFire;
 
+	public AudioClipDefinition[] PistolFire;
+
 	public AudioClipDefinition[] CrossbowFlyBy;
 
 	public AudioClipDefinition[] CrossbowImpactEnv;
@@ -83,6 +85,8 @@ public class AudioLibrary : Singleton<AudioLibrary>
 	public AudioClipDefinition GameOverSong;
 
 	public AudioClipDefinition GameOverHoHo;
+
+ 
 
 	public void Start()
 	{

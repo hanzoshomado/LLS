@@ -63,7 +63,7 @@ MonoBehaviour:
   m_Script: {fileID: -36112512, guid: 1c88fea6d3ec76fb60083aea35cce430, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _sceneGuid: 
+  _sceneGuid: 4b91f221-fb75-446d-9543-1fd0efdf9901
   _serializerGuid: ca2dc8b3-1566-449b-bc0e-a4e6ac32ebc1
   _prefabId: 12
   _updateRate: 1
@@ -182,12 +182,12 @@ TrailRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 1, g: 0, b: 0, a: 1}
-      key1: {r: 1, g: 0.5019608, b: 0.5019608, a: 1}
-      key2: {r: 1, g: 0.6627451, b: 0.6627451, a: 0.7529412}
-      key3: {r: 1, g: 0.8745098, b: 0.8745098, a: 0.43529412}
-      key4: {r: 1, g: 1, b: 1, a: 0.22352941}
-      key5: {r: 0, g: 0, b: 0, a: 0}
+      key0: {r: 0, g: 0.12074661, b: 1, a: 1}
+      key1: {r: 0.23602703, g: 0.6749449, b: 0.9811321, a: 1}
+      key2: {r: 0.19339621, g: 1, b: 1, a: 0.7529412}
+      key3: {r: 0, g: 0.9716981, b: 0.9281655, a: 0.43529412}
+      key4: {r: 0, g: 1, b: 0.765018, a: 0.22352941}
+      key5: {r: 1, g: 1, b: 1, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
       ctime0: 0
@@ -195,7 +195,7 @@ TrailRenderer:
       ctime2: 32768
       ctime3: 49151
       ctime4: 65535
-      ctime5: 0
+      ctime5: 65535
       ctime6: 0
       ctime7: 0
       atime0: 0
@@ -207,7 +207,7 @@ TrailRenderer:
       atime6: 0
       atime7: 0
       m_Mode: 0
-      m_ColorSpace: -1
+      m_ColorSpace: 0
       m_NumColorKeys: 5
       m_NumAlphaKeys: 5
     numCornerVertices: 0
