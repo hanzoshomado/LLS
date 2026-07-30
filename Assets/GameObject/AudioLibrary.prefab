@@ -1,0 +1,270 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1709254077376921
+GameObject:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_Component:
+  - component: {fileID: 4730242686860875}
+  - component: {fileID: 114724804207875695}
+  m_Layer: 0
+  m_Name: AudioLibrary
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4730242686860875
+Transform:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1709254077376921}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0.9851074, y: 16.792603, z: -7.196289}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &114724804207875695
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 100100000}
+  m_GameObject: {fileID: 1709254077376921}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 025eecde476b9dc2e0a23228cc648da0, type: 3}
+  m_Name:
+  m_EditorClassIdentifier:
+  CountdownMusic:
+    Clip: {fileID: 8300000, guid: d277f242053eb6c4cae01b1e2690a527, type: 3}
+    MixerGroup: {fileID: 24300072, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  CombatMusic:
+  - Clip: {fileID: 8300000, guid: dd7cf18a3b55a39419b78d2ed16f0e14, type: 3}
+    MixerGroup: {fileID: 24300072, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  WinMusic:
+  - Clip: {fileID: 8300000, guid: 50fe101212574e1448ffbfcb36698e27, type: 3}
+    MixerGroup: {fileID: 24300072, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  MainMenuMusic:
+  - Clip: {fileID: 8300000, guid: 477e249da33732d4c95b31b527285290, type: 3}
+    MixerGroup: {fileID: 24300072, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  BeginPunch:
+  - Clip: {fileID: 8300000, guid: 0c5b95a5c36d39445a00a1f022aeade1, type: 3}
+    MixerGroup: {fileID: 24300008, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.2
+  - Clip: {fileID: 8300000, guid: d7deb1fe70e9ca142a717cc7ed6a75ef, type: 3}
+    MixerGroup: {fileID: 24300008, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.2
+  PunchImpact:
+  - Clip: {fileID: 8300000, guid: 48dc1f97e7a0ab74e8fba2d17f4554cd, type: 3}
+    MixerGroup: {fileID: 24300080, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  - Clip: {fileID: 8300000, guid: fd5829433c92bb945849173b3fb568f3, type: 3}
+    MixerGroup: {fileID: 24300080, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  - Clip: {fileID: 8300000, guid: db20b9611946a5848a24803367b7bc65, type: 3}
+    MixerGroup: {fileID: 24300080, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  SwordSwing:
+  - Clip: {fileID: 8300000, guid: 259cfe55ae3a91347851c76785997f25, type: 3}
+    MixerGroup: {fileID: 24300068, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  SwordImpact:
+  - Clip: {fileID: 8300000, guid: a45b938aa134f4b438fad545731a2dab, type: 3}
+    MixerGroup: {fileID: 24300048, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  - Clip: {fileID: 8300000, guid: 081b491b6e30b5e48897dafecb6a6bd5, type: 3}
+    MixerGroup: {fileID: 24300048, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  - Clip: {fileID: 8300000, guid: a947926776ca03648bab641001d81745, type: 3}
+    MixerGroup: {fileID: 24300048, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  - Clip: {fileID: 8300000, guid: 3f87a2f6ba2d39b4a93b74da19910de3, type: 3}
+    MixerGroup: {fileID: 24300048, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  JumpPadCompress:
+  - Clip: {fileID: 8300000, guid: daccaacf42ed4674a9f1ccdf614171e3, type: 3}
+    MixerGroup: {fileID: 24300016, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.05
+  - Clip: {fileID: 8300000, guid: 1340ad5f64c7e964da7fb983b10f2bc7, type: 3}
+    MixerGroup: {fileID: 24300016, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.05
+  - Clip: {fileID: 8300000, guid: f70e082ec6ee01142bdcb8e5d4d08581, type: 3}
+    MixerGroup: {fileID: 24300016, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.05
+  JumpPadBoing:
+  - Clip: {fileID: 8300000, guid: 3d67f6a678e0bef43b1d12c22a6d0aa6, type: 3}
+    MixerGroup: {fileID: 24300084, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  SnowFootstep:
+  - Clip: {fileID: 8300000, guid: fb128125b39cfd648823dbcf81f7ada6, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.03
+  - Clip: {fileID: 8300000, guid: 1a5487df99d31ff46bf402c0fb582f05, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.03
+  - Clip: {fileID: 8300000, guid: 2639da43b363db0469e014c485da6d99, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.03
+  - Clip: {fileID: 8300000, guid: bbaee0d0a9cc26b46889c3cc2fcd2d11, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.03
+  DirtFootstep:
+  - Clip: {fileID: 8300000, guid: 347970031f1f73940b8d5f32fcec52cd, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: 69e8b5ea3cf4b8249bf95053bfa4dbae, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.1
+  IceFootstep:
+  - Clip: {fileID: 8300000, guid: 347970031f1f73940b8d5f32fcec52cd, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  StoneFootstep:
+  - Clip: {fileID: 8300000, guid: 347970031f1f73940b8d5f32fcec52cd, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  WoodFootstep:
+  - Clip: {fileID: 8300000, guid: 347970031f1f73940b8d5f32fcec52cd, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  TreeFootstep:
+  - Clip: {fileID: 8300000, guid: a5ddeca6512cb7c46a80c6954bd0d53a, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: d765a8573a82e384fa51e8a646149ad7, type: 3}
+    MixerGroup: {fileID: 24300056, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.1
+  ReindeerTrot:
+  - Clip: {fileID: 8300000, guid: 5f8b5603d8337964eba6f9ea261275e8, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: 8cfd6e65ef6c2c945ab2c46762e2277e, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: 601ac281f4cdfa3438f99d4f7ce8dcb3, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: 7c10d1af65e197946a8cbc1cabcde779, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  ReindeerRun:
+  - Clip: {fileID: 8300000, guid: ee5f2f507a0d9a04db82c7a853bb47dc, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: 496fccf137cbbcb4f94f1732e96475df, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: cf3e90802f884084b8fa311a789d19c1, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  - Clip: {fileID: 8300000, guid: 3e5176d8c25d18b4ca8cab0c3058f1fa, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  CrossbowFire:
+  - Clip: {fileID: 8300000, guid: 1427f9a7cdf4bba4288e4a0dac426470, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  CrossbowFlyBy:
+  - Clip: {fileID: 8300000, guid: cb073976f9c08d849b93765fc7e31560, type: 3}
+    MixerGroup: {fileID: 24300076, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.05
+  - Clip: {fileID: 8300000, guid: b50f8f65052aa2240aba2fbb4c824325, type: 3}
+    MixerGroup: {fileID: 24300076, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.05
+  CrossbowImpactEnv:
+  - Clip: {fileID: 8300000, guid: 5e56c922ea4541a4fa97caea544e3770, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0.1
+  CrossbowImpactBody:
+  - Clip: {fileID: 8300000, guid: 4de4c08cf56012a48b58a0c348a30d4b, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  CrossbowImpactBodySecondary: []
+  FlareStart:
+  - Clip: {fileID: 8300000, guid: eb1d23ab57202e44abc26d2064897436, type: 3}
+    MixerGroup: {fileID: 24300004, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  FlareIdle:
+  - Clip: {fileID: 8300000, guid: f70914db8f2520e41aae65ae19b564ea, type: 3}
+    MixerGroup: {fileID: 24300052, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0.2
+  GiftParachuteIdle:
+  - Clip: {fileID: 8300000, guid: ba9ee6fc7e7bd804fa8654c60ee673ed, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  GiftParachuteExplode:
+  - Clip: {fileID: 8300000, guid: dc3fe70d490dd1b4b849673f9f71c5a8, type: 3}
+    MixerGroup: {fileID: 24300064, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GiftParachuteExplodeSecondary:
+  - Clip: {fileID: 8300000, guid: 3746c79f8cd4d9a419f078ede01cb9a4, type: 3}
+    MixerGroup: {fileID: 24300088, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GiftBoxOpen:
+  - Clip: {fileID: 8300000, guid: 84599fab984fd24448576804306ff82e, type: 3}
+    MixerGroup: {fileID: 24300036, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GiftBoxPostReveal:
+  - Clip: {fileID: 8300000, guid: f0418bb1079f6f2479da5e41134f086f, type: 3}
+    MixerGroup: {fileID: 24300032, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GiftGet:
+  - Clip: {fileID: 8300000, guid: 97e44767fab891d48a2f3ed47015501f, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  CountdownPunch:
+    Clip: {fileID: 8300000, guid: f023158e8f2a9734aa6cbbb43b05c3b1, type: 3}
+    MixerGroup: {fileID: 24300012, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  CrowdCountdown:
+    Clip: {fileID: 0}
+    MixerGroup: {fileID: 24300092, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GameStart:
+    Clip: {fileID: 8300000, guid: 16fdb62870cd94f4baec8418e970c6cd, type: 3}
+    MixerGroup: {fileID: 24300040, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  ReadyFightVoice:
+    Clip: {fileID: 8300000, guid: 47a9d806ec8a75a4190237d47c2c1e60, type: 3}
+    MixerGroup: {fileID: 24300060, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GameStartDrop:
+    Clip: {fileID: 8300000, guid: 0c3cc8ee7a209204797976f9eadebafb, type: 3}
+    MixerGroup: {fileID: 24300024, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  Jingle:
+    Clip: {fileID: 8300000, guid: 39127f9b2ae8bad4689fb97a2aeee205, type: 3}
+    MixerGroup: {fileID: 24300028, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GameOver:
+    Clip: {fileID: 8300000, guid: 2734860f5cecdda48b56054ec9a1ea35, type: 3}
+    MixerGroup: {fileID: 24300044, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GameOverSong:
+    Clip: {fileID: 8300000, guid: 6a0208c3860127b42abe5336b72c136e, type: 3}
+    MixerGroup: {fileID: 24300096, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+  GameOverHoHo:
+    Clip: {fileID: 8300000, guid: dcffb0430ef815a4ca29097b9ca99e4c, type: 3}
+    MixerGroup: {fileID: 24300020, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}
+    PitchVariation: 0
+--- !u!1001 &100100000
+Prefab:
+  serializedVersion: 2
+  m_ObjectHideFlags: 1
+  m_Modification:
+    m_TransformParent: {fileID: 0}
+    m_Modifications: []
+    m_RemovedComponents: []
+  m_ParentPrefab: {fileID: 0}
+  m_RootGameObject: {fileID: 1709254077376921}
+  m_IsPrefabParent: 1

@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 6
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_Name: FogMaterial
+  m_Shader: {fileID: 4800000, guid: bd134ffb4457f284ea16c5ca9489fe65, type: 3}
+  m_ShaderKeywords: _ALPHABLEND_ON _EMISSION _GLOSSYREFLECTIONS_OFF _SPECULARHIGHLIGHTS_OFF
+  m_LightmapFlags: 1
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+      _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Floats:
+      _AnimationAmount: 0.045
+      _AnimationSpeed: 10
+      _ArmorAlpha: 0.7
+      _Brightness: 0.213
+      _BrightnessFade: 3.53
+      _BumpScale: 1
+      _ColorShift: 0.00816
+      _Cutoff: 0.5
+      _DetailNormalMapScale: 1
+      _DstBlend: 10
+      _EmissionScale: 4.96
+      _GlossMapScale: 1
+      _Glossiness: 0.5
+      _GlossyReflections: 0
+      _Metallic: 0
+      _Mode: 2
+      _OcclusionStrength: 1
+      _Parallax: 0.02
+      _RedShift: 0.48
+      _RippleSize: 67.5
+      _SmoothnessTextureChannel: 0
+      _SpecularHighlights: 0
+      _Speed: 0.1
+      _SrcBlend: 5
+      _StarCount: 0.452
+      _UVSec: 0
+      _XYScale: 63.8
+      _YScale: 0.45
+      _ZWrite: 0
+    m_Colors:
+      _ArmorColor: {r: 0.2647059, g: 0.2647059, b: 0.2647059, a: 1}
+      _ArmorEmission: {r: 1, g: 0.6, b: 0, a: 1}
+      _Color: {r: 1, g: 0.6413793, b: 0, a: 0.291}
+      _EmissionColor: {r: 0.8161765, g: 0.26455382, b: 0.22804934, a: 1}
