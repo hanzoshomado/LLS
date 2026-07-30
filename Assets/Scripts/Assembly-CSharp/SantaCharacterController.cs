@@ -2,197 +2,139 @@ using System;
 using System.Collections;
 using Bolt;
 using UnityEngine;
+using System.Reflection; 
+
+ 
+[Serializable]
+public class RangedWeaponStats
+{
+    public float SpawnDistance;
+    public float TimeBetweenAttacks;
+    public float MovementMultiplier;
+    public Transform MuzzlePoint;
+}
 
 public class SantaCharacterController : EntityEventListener<ISantaState>
 {
-	public float MoveSpeed;
-
+	[Header("Core References")]
 	public Camera PlayerCamera;
-
 	public WeaponModel[] WeaponModels;
-
 	public Animator UpperAnimator;
-
 	public Animator LowerAnimator;
-
-	public float AnimatorRunSpeed;
-
-	public float CharacterCollisionRadius;
-
-	public Transform BloodSpawnPoint;
-
-	public SantaCharacterRagdollSource SantaCharacterRagdollSource;
-
-	public float DeathFallVelocity;
-
-	public float DeathFallVelocityY;
-
-	public Transform NameTagAnchorPoint;
-
 	public Transform CameraRoot;
-
 	public Transform TiltRoot;
-
 	public Transform LegsRoot;
-
-	public Transform AimCameraPosition;
-
-	public Transform ReindeerCameraPosition;
-
-	public float CrossBowSpawnDistance;
-
-	public int StartHitpoints;
-
-	public float StartStamina;
-
-	public float StaminaToStartSprinting;
-
-	public float SprintMoveMultiplier;
-
-	public float SprintingStaminaDrainedPerSecond;
-
-	public float StaminaRegenPerSecond;
-
-	public int PunchDamage;
-
-	public int SwordDamage;
-
-	public float TimeBetweenFistAttacks;
-
-	public float TimeBetweenSwordAttacks;
-
-	public float TimeBetweenCrossbowAttacks;
-
-	public float SwordMovementMultiplier;
-
-	public float ReindeerMovementMultiplier;
-
-	public float CrossbowMovementMultiplier;
-
-	public float FallHeightToKillPlayer;
-
-	public float MinTiltX;
-
-	public float MaxTiltX;
-
-	public float MouseRotationSpeedY = 2f;
-
-	public float MouseRotationSpeedX = 2f;
-
-	public float JumpVelocity;
-
-	public float WallRaycastDistance;
-
-	public float WallSlipFactor;
-
-	public float WallSlipMinimum;
-
-	private Vector3 _lastSlipVector;
-
-	public float FootRaycastDistance;
-
-	public Transform FootRaycastOrigin;
-
-	public Transform WallRaycastPointsOrigin;
-
-	public Transform[] WallRaycastPoints;
-
-	public ITweenHash AimInHash;
-
-	public ITweenHash AimOutHash;
-
-	public ITweenHash ReindeerCameraInHash;
-
-	public ITweenHash ReindeerCameraOutHash;
-
+	public Transform NameTagAnchorPoint;
 	public GameObject Head;
 
-	public ReindeerPlayerAnimator ReindeerAnimator;
+	[Header("Movement")]
+	public float MoveSpeed;
+	public float AnimatorRunSpeed;
+	public float CharacterCollisionRadius;
+	public float JumpVelocity;
+	public float FallHeightToKillPlayer;
+	public float MinTiltX;
+	public float MaxTiltX;
+	public float MouseRotationSpeedY = 2f;
+	public float MouseRotationSpeedX = 2f;
 
-	public float ReindeerRotationYPerSecond;
+	[Header("Ground / Wall Detection")]
+	public float WallRaycastDistance;
+	public float WallSlipFactor;
+	public float WallSlipMinimum;
+	public float FootRaycastDistance;
+	public Transform FootRaycastOrigin;
+	public Transform WallRaycastPointsOrigin;
+	public Transform[] WallRaycastPoints;
 
-	public float ReindeerRotationYPerSecondWhileSprinting;
+	[Header("Stamina / Sprint")]
+	public float StaminaToStartSprinting;
+	public float SprintMoveMultiplier;
+	public float SprintingStaminaDrainedPerSecond;
+	public float StaminaRegenPerSecond;
+	public float StartStamina;
 
-	public float ReindeerTiltSpeedMultiplier;
+	[Header("Health / Death")]
+	public int StartHitpoints;
+	public Transform BloodSpawnPoint;
+	public SantaCharacterRagdollSource SantaCharacterRagdollSource;
+	public float DeathFallVelocity;
+	public float DeathFallVelocityY;
 
-	public float ReindeerGroundOffset;
+	[Header("Fists")]
+	public int PunchDamage;
+	public float TimeBetweenFistAttacks;
 
-	public float ReindeerSprintMultiplier;
+	[Header("Sword")]
+	public int SwordDamage;
+	public float TimeBetweenSwordAttacks;
+	public float SwordMovementMultiplier;
 
-	public float ReindeerStaminaToStartSprinting;
-
-	public int ReindeerHornDamage;
-
-	public float ReindeerStaminaDrain;
-
+	[Header("Crossbow")]
+	public float CrossBowSpawnDistance;
+	public float TimeBetweenCrossbowAttacks;
+	public float CrossbowMovementMultiplier;
 	public CrossbowAttachPoint CrossbowAttachPointHead;
-
 	public CrossbowAttachPoint CrossbowAttachPointBody;
-
 	public CrossbowAttachPoint CrossbowAttachPointReindeer;
-
 	public Transform CrossbowAttachedPrefab;
+	public Transform AimCameraPosition;
+	public ITweenHash AimInHash;
+	public ITweenHash AimOutHash;
 
+	[Header("Reindeer")]
+	public Transform ReindeerCameraPosition;
+	public ReindeerPlayerAnimator ReindeerAnimator;
+	public float ReindeerMovementMultiplier;
+	public float ReindeerRotationYPerSecond;
+	public float ReindeerRotationYPerSecondWhileSprinting;
+	public float ReindeerTiltSpeedMultiplier;
+	public float ReindeerGroundOffset;
+	public float ReindeerSprintMultiplier;
+	public float ReindeerStaminaToStartSprinting;
+	public int ReindeerHornDamage;
+	public float ReindeerStaminaDrain;
+	public ITweenHash ReindeerCameraInHash;
+	public ITweenHash ReindeerCameraOutHash;
+
+	[Header("Pistol")]
+	public RangedWeaponStats PistolStats;
+
+	[Header("Win Animation")]
 	public float WinCameraRotationMultiplier;
 
+	// ---- Private runtime state (not shown in Inspector) ----
+
+	private Vector3 _lastSlipVector;
 	private bool _forward;
-
 	private bool _backward;
-
 	private bool _left;
-
 	private bool _right;
-
 	private bool _jump;
-
 	private bool _pickupButtonDown;
-
 	private bool _putDownButtonDown;
-
 	private bool _attack1Held;
-
 	private bool _attack2Held;
-
 	private bool _sprintKeyHeld;
-
 	private float _mouseDeltaX;
-
 	private float _mouseDeltaY;
-
 	private Vector3 _velocity;
-
 	private int _lastDamagedByAttackID;
-
 	private int _reindeerLastDamagedByAttackID;
-
 	private BoltEntity _lastDamagedByEntity;
-
 	private int _lastAttackIDRendered;
-
 	private bool _hasBeenUnderLocalControl;
-
 	private float _stamina;
-
 	private float _timeOfLastItemPickup;
-
 	private bool _isDetached;
-
 	private Vector3 _cameraMeleePosition;
-
 	private Vector3 _cameraMeleeLocalEulerAngles;
-
 	private bool _isInAimState;
-
 	private float _timeStartedTurningReideer = -1f;
-
 	private GroundType _groundType;
-
 	private GroundType _lastGroundType;
-
 	private float _lastGroundLandTime;
-
 	private bool _wasOnGround;
-
 	private bool _isPlayingWinAnimation;
 
 	public GroundType GetGroundType()
@@ -340,14 +282,19 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void OnEquippedWeaponChanged()
 	{
+		 Debug.Log("OnEquippedWeaponChanged fired, weapon = " + (WeaponType)base.state.EquippedWeapon);
 		WeaponType equippedWeapon = (WeaponType)base.state.EquippedWeapon;
+		Debug.Log("Equipped weapon is now: " + equippedWeapon + " | Array length: " + WeaponModels.Length);
 		for (int i = 0; i < WeaponModels.Length; i++)
 		{
-			WeaponModels[i].gameObject.SetActive(WeaponModels[i].WeaponType == equippedWeapon);
+			bool shouldBeActive = WeaponModels[i].WeaponType == equippedWeapon;
+			Debug.Log("  Model[" + i + "]: " + WeaponModels[i].name + " | Type: " + WeaponModels[i].WeaponType + " | Match: " + shouldBeActive);
+			WeaponModels[i].gameObject.SetActive(shouldBeActive);
 		}
 		UpperAnimator.SetBool("HasSword", equippedWeapon == WeaponType.Sword);
 		UpperAnimator.SetBool("HasCrossbow", equippedWeapon == WeaponType.Crossbow);
 		UpperAnimator.SetBool("HasReindeer", equippedWeapon == WeaponType.Reindeer);
+		UpperAnimator.SetBool("HasPistol", equippedWeapon == WeaponType.Pistol);
 		LowerAnimator.SetBool("HasReindeer", equippedWeapon == WeaponType.Reindeer);
 		if (HasBeenUnderLocalControl())
 		{
@@ -605,6 +552,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return CrossbowMovementMultiplier;
 		}
+		if(HasPistol())
+		{
+			return PistolStats.MovementMultiplier;
+		}
+
 		return 1f;
 	}
 
@@ -797,6 +749,16 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 					base.state.EquippedWeapon = 0;
 				}
 			}
+		
+			if (HasPistol())
+			{
+				base.state.CurrentWeaponAmmo--;
+				spawnPistolBullet(cmd.ServerFrame);
+				if (base.state.CurrentWeaponAmmo == 0)
+				{
+					base.state.EquippedWeapon = 0;
+				}
+			}
 		}
 		tryRenderAttackID(attackID, attackDirection);
 	}
@@ -805,6 +767,24 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	{
 		Vector3 spawnPosition = AimCameraPosition.position + AimCameraPosition.forward * CrossBowSpawnDistance;
 		BoltEntity boltEntity = BoltNetwork.Instantiate(BoltPrefabs.CrossbowBolt);
+		boltEntity.GetComponent<CrossbowProjectile>().Intialize(this, base.state.ExecutingAttackID, spawnPosition, AimCameraPosition.eulerAngles, commandServerFrame);
+	}
+
+	private static PrefabId MakePrefabId(int id)
+	{
+		ConstructorInfo ctor = typeof(PrefabId).GetConstructor(
+			BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+			null,
+			new System.Type[] { typeof(int) },
+			null
+		);
+		return (PrefabId)ctor.Invoke(new object[] { id });
+	}
+
+	private void spawnPistolBullet(int commandServerFrame)
+	{
+		 Vector3 spawnPosition = PistolStats.MuzzlePoint.position + PistolStats.MuzzlePoint.forward * PistolStats.SpawnDistance;
+		BoltEntity boltEntity = BoltNetwork.Instantiate(MakePrefabId(12));
 		boltEntity.GetComponent<CrossbowProjectile>().Intialize(this, base.state.ExecutingAttackID, spawnPosition, AimCameraPosition.eulerAngles, commandServerFrame);
 	}
 
@@ -817,6 +797,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		if (HasCrossbow())
 		{
 			return TimeBetweenCrossbowAttacks;
+		}
+		if(HasPistol())
+		{
+			 return PistolStats.TimeBetweenAttacks;
 		}
 		return TimeBetweenFistAttacks;
 	}
@@ -836,6 +820,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		if (HasCrossbow())
 		{
 			UpperAnimator.Play("Fire_Crossbow", 0, 0f);
+		}
+		if (HasPistol())
+		{
+			UpperAnimator.Play("Fire_Crossbow", 0, 0f); // PlaceHolder
 		}
 		else if (!HasAnyEquippedWeapon())
 		{
@@ -920,10 +908,16 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		return base.state.EquippedWeapon == 2;
 	}
 
+	public bool HasPistol()
+	{
+		return base.state.EquippedWeapon == (int)WeaponType.Pistol;
+	}
+
 	public bool HasReindeer()
 	{
 		return base.state.EquippedWeapon == 4;
 	}
+	
 
 	public int GetEquippedWeaponTypeAsInt()
 	{

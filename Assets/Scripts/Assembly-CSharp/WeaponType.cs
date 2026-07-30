@@ -4,5 +4,10 @@ public enum WeaponType
 	Sword = 1,
 	Crossbow = 2,
 	Rifle = 3,
-	Reindeer = 4
+	Reindeer = 4,
+
+	
+
+	// COOL weapons
+	Pistol = 5
 }

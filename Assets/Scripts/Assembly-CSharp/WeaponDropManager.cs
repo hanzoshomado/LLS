@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Bolt;
 using UnityEngine;
+using System.Reflection;
 
 public class WeaponDropManager : GlobalEventListener
 {
@@ -139,6 +140,17 @@ public class WeaponDropManager : GlobalEventListener
 		SpawnPickup(position, _lastSpawnedWeapon);
 	}
 
+	private static PrefabId MakePrefabId(int id)
+	{
+		ConstructorInfo ctor = typeof(PrefabId).GetConstructor(
+			BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
+			null,
+			new System.Type[] { typeof(int) },
+			null
+		);
+		return (PrefabId)ctor.Invoke(new object[] { id });
+	}
+
 	public void SpawnPickup(Vector3 position, WeaponType weaponType, int ammo = -1)
 	{
 		PrefabId prefabId;
@@ -152,6 +164,9 @@ public class WeaponDropManager : GlobalEventListener
 			break;
 		case WeaponType.Reindeer:
 			prefabId = BoltPrefabs.ReindeerPickup;
+			break;
+		case WeaponType.Pistol:
+			prefabId = MakePrefabId(13);
 			break;
 		default:
 			throw new NotImplementedException("No prefab assigned to weapon: " + weaponType);

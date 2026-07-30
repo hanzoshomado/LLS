@@ -3,25 +3,28 @@
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 763834002, guid: 1c88fea6d3ec76fb60083aea35cce430, type: 3}
   m_Name: BoltPrefabDatabase
-  m_EditorClassIdentifier:
-  DatabaseMode: 0
+  m_EditorClassIdentifier: 
+  DatabaseMode: 2
   Prefabs:
   - {fileID: 0}
-  - {fileID: 1709254077376921, guid: 7423cbdfa3bb5ee4ab89383af0e35806, type: 2}
-  - {fileID: 1709254077376921, guid: f286a02d0799fe94cae5772a687330a7, type: 2}
-  - {fileID: 1709254077376921, guid: 86a65985fb46385478d720305f6c3353, type: 2}
-  - {fileID: 1709254077376921, guid: 37c23353db60e24448e36db83f0df7c9, type: 2}
-  - {fileID: 1709254077376921, guid: 5ce1ee0f37cf2da439dbe8e2f0039a79, type: 2}
-  - {fileID: 1709254077376921, guid: 57b5798be0e6cd045832241eb607d16d, type: 2}
-  - {fileID: 1709254077376921, guid: 809d1aa695d24ad489a2dba9c09498ac, type: 2}
-  - {fileID: 1709254077376921, guid: d4ec3605fc2088a4bbb2f27950c1e593, type: 2}
-  - {fileID: 1709254077376921, guid: dd58cc1a41580094087245745f7a22b7, type: 2}
-  - {fileID: 1709254077376921, guid: 4bea1e0f35fb6ad4d873a64844d626e1, type: 2}
-  - {fileID: 1709254077376921, guid: 9dcdbe9eb6455574f900ff0d808502e0, type: 2}
+  - {fileID: 1709254077376921, guid: 7423cbdfa3bb5ee4ab89383af0e35806, type: 3}
+  - {fileID: 1709254077376921, guid: f286a02d0799fe94cae5772a687330a7, type: 3}
+  - {fileID: 1709254077376921, guid: 86a65985fb46385478d720305f6c3353, type: 3}
+  - {fileID: 1709254077376921, guid: 37c23353db60e24448e36db83f0df7c9, type: 3}
+  - {fileID: 1709254077376921, guid: 5ce1ee0f37cf2da439dbe8e2f0039a79, type: 3}
+  - {fileID: 1709254077376921, guid: 57b5798be0e6cd045832241eb607d16d, type: 3}
+  - {fileID: 1709254077376921, guid: 809d1aa695d24ad489a2dba9c09498ac, type: 3}
+  - {fileID: 1709254077376921, guid: d4ec3605fc2088a4bbb2f27950c1e593, type: 3}
+  - {fileID: 1709254077376921, guid: dd58cc1a41580094087245745f7a22b7, type: 3}
+  - {fileID: 1709254077376921, guid: 4bea1e0f35fb6ad4d873a64844d626e1, type: 3}
+  - {fileID: 1709254077376921, guid: 9dcdbe9eb6455574f900ff0d808502e0, type: 3}
+  - {fileID: 1709254077376921, guid: b76d56b53e8d57a4aa1866fa19a1e3e9, type: 3}
+  - {fileID: 1709254077376921, guid: f2e546542e87024429a9dd6fbd4dc6f2, type: 3}
