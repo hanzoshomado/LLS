@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using Bolt;
 
@@ -6,27 +7,40 @@ public class SnowballProjectile : MonoBehaviour
     public int Damage;
     public float ExplosionRadius;
     public GameObject ImpactEffect;
+    public float GravityMultiplier = 1f; // tune per-weapon on each prefab (Snowball vs Grenade, etc.)
 
     private SantaCharacterController _owner;
     private int _attackID;
     private bool _hasExploded;
+    private Rigidbody _rb;
+
+    private void Awake()
+    {
+        _rb = GetComponent<Rigidbody>();
+        _rb.useGravity = false; // disable built-in gravity, apply our own scaled version instead
+    }
+
+    private void FixedUpdate()
+    {
+        _rb.AddForce(Physics.gravity * GravityMultiplier, ForceMode.Acceleration);
+    }
 
     public void Initialize(SantaCharacterController owner, int attackID, Vector3 velocity)
     {
         _owner = owner;
         _attackID = attackID;
-        GetComponent<Rigidbody>().velocity = velocity;
+        _rb.velocity = velocity;
     }
 
     private void OnCollisionEnter(Collision collision)
     {
         if (!BoltNetwork.isServer) return;
-        if (_hasExploded) return; // prevent double-trigger
+        if (_hasExploded) return;
         _hasExploded = true;
 
         if (_owner == null)
         {
-            BoltNetwork.Destroy(gameObject);
+            SafeDestroy();
             return;
         }
 
@@ -48,6 +62,18 @@ public class SnowballProjectile : MonoBehaviour
             Destroy(effect, 3f);
         }
 
-        BoltNetwork.Destroy(gameObject);
+        SafeDestroy();
+    }
+
+    private void SafeDestroy()
+    {
+        try
+        {
+            BoltNetwork.Destroy(gameObject);
+        }
+        catch (Exception)
+        {
+            // already detached/destroyed by Bolt internally - safe to ignore
+        }
     }
 }

@@ -58,16 +58,18 @@ public class WeaponDebugger : MonoBehaviour
     }
 
     private void EquipWeapon(WeaponType type, int ammo)
+{
+    ISantaState state = _entity.GetState<ISantaState>();
+    if (state == null)
     {
-        ISantaState state = _entity.GetState<ISantaState>();
-        if (state == null)
-        {
-            Debug.LogWarning("WeaponDebugger: could not access ISantaState.");
-            return;
-        }
+        Debug.LogWarning("WeaponDebugger: could not access ISantaState.");
+        return;
+    }
 
-        state.EquippedWeapon = (int)type;
-        state.CurrentWeaponAmmo = ammo;
+    Debug.Log("WeaponDebugger EquipWeapon called with type=" + type + " (int value: " + (int)type + ")");
+
+    state.EquippedWeapon = (int)type;
+    state.CurrentWeaponAmmo = ammo;
 
         if (RefillHealthOnEquip)
         {

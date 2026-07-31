@@ -125,6 +125,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public float GrenadeExplosionRadius;
 	public float GrenadeThrowForce;
 
+	[Header("Boxing Gloves")]
+	public int BoxingGlovesDamage;
+	public float TimeBetweenBoxingGlovesAttacks;
+	public float BoxingGlovesMovementMultiplier;
+
+
 
 	[Header("Win Animation")]
 	public float WinCameraRotationMultiplier;
@@ -614,6 +620,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return LightningStats.MovementMultiplier;
 		}
+		if (HasBoxingGloves())
+		{
+			return BoxingGlovesMovementMultiplier;
+		}
 
 		return 1f;
 	}
@@ -777,7 +787,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		bool flag = (cmd.Input.Attack2Held && HasCrossbow()) || (cmd.Input.Attack1Held && HasLightningGun());
 		if (HasLightningGun())
 		{
-			Debug.Log("Lightning flag check: Attack1Held=" + cmd.Input.Attack1Held + " HasLightningGun=" + HasLightningGun() + " flag=" + flag + " state.IsAiming=" + base.state.IsAiming + " IsOwner=" + base.entity.IsOwner());
+			//Debug.Log("Lightning flag check: Attack1Held=" + cmd.Input.Attack1Held + " HasLightningGun=" + HasLightningGun() + " flag=" + flag + " state.IsAiming=" + base.state.IsAiming + " IsOwner=" + base.entity.IsOwner());
 		}
 		if (flag && !base.state.IsAiming)
 		{
@@ -1026,6 +1036,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return SnowballStats.TimeBetweenAttacks;
 		}
+		if (HasBoxingGloves())
+		{
+			return TimeBetweenBoxingGlovesAttacks;
+		}
 	
 		return TimeBetweenFistAttacks;
 	}
@@ -1058,7 +1072,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.SnowballThrow, UpperAnimator.transform);
 			UpperAnimator.SetTrigger("FireSnowball");
 		}
-		else if (!HasAnyEquippedWeapon())
+		else if (!HasAnyEquippedWeapon() || HasBoxingGloves())
 		{
 			int num = base.state.ExecutingAttackID % 2 + 1;
 			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.BeginPunch, UpperAnimator.transform);
@@ -1157,6 +1171,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	{
 		return base.state.EquippedWeapon == (int)WeaponType.Grenade;
 	}
+	public bool HasBoxingGloves()
+	{
+		return base.state.EquippedWeapon == (int)WeaponType.BoxingGloves;
+	}
 
 	public bool HasReindeer()
 	{
@@ -1242,10 +1260,15 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return ReindeerHornDamage;
 		}
+		if (HasBoxingGloves())
+		{
+			return BoxingGlovesDamage;
+		}
 		if (!HasAnyEquippedWeapon())
 		{
 			return PunchDamage;
 		}
+		
 		return 0;
 	}
 

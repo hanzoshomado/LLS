@@ -174,6 +174,13 @@ public class WeaponDropManager : GlobalEventListener
 		case WeaponType.SnowballLauncher:
 			prefabId = SantaCharacterController.MakePrefabId(16);
 			break;
+		case WeaponType.Grenade:
+			prefabId = SantaCharacterController.MakePrefabId(18);
+			break;
+		case WeaponType.BoxingGloves:
+			prefabId = SantaCharacterController.MakePrefabId(19);
+			break;
+
 		default:
 			throw new NotImplementedException("No prefab assigned to weapon: " + weaponType);
 		}
