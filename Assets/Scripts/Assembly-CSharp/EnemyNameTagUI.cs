@@ -11,7 +11,11 @@ public class EnemyNameTagUI : MonoBehaviour
 
 	// Optional. Assign a child Image holding the crown sprite; it is shown only for the
 	// player currently leading on wins. Left unassigned, the tag just has no crown.
+	// Expected to be parented to the SteamUsername text with a right-edge pivot.
 	public Image CrownIcon;
+
+	// Gap between the crown and the first letter of the name, in SteamUsername local units.
+	public float CrownNamePadding = 3f;
 
 	private SantaCharacterController _santaCharacter;
 
@@ -65,10 +69,27 @@ public class EnemyNameTagUI : MonoBehaviour
 		_lastRenderedCrown = flag;
 
 		SteamUsername.text = text + "(" + num + ")";
-		if (CrownIcon != null)
+		if (CrownIcon == null)
 		{
-			CrownIcon.gameObject.SetActive(flag);
+			return;
 		}
+		CrownIcon.gameObject.SetActive(flag);
+		if (!flag)
+		{
+			return;
+		}
+
+		// The name is centred inside a rect far wider than the text, so a fixed offset would
+		// drift away from short names. Chase the left edge of the glyphs instead.
+		float preferredWidth = SteamUsername.preferredWidth;
+		if (preferredWidth <= 0f)
+		{
+			// Text hasn't been generated yet, so retry next Update rather than park the crown
+			// on top of the name.
+			_lastRenderedUsername = null;
+			return;
+		}
+		CrownIcon.rectTransform.anchoredPosition = new Vector2(0f - (preferredWidth * 0.5f + CrownNamePadding), 0f);
 	}
 
 	private void Update()
