@@ -14,6 +14,10 @@ public class NetworkCallbacks : GlobalEventListener
 
 	public override void OnEvent(LogEvent evnt)
 	{
+		if (WeaponDebugger.IsRequest(evnt.message))
+		{
+			return;
+		}
 		_logMessages.Insert(0, evnt.message);
 	}
 

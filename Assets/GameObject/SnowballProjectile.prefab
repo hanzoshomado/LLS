@@ -173,7 +173,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d552eb1b3c58bfa4286a0aaae4946ede, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Damage: 15
-  ExplosionRadius: 15
+  Damage: 30
+  ExplosionRadius: 3
   ImpactEffect: {fileID: 4174336008178520572, guid: 22b1ae6620dd89c4993266c7846f9954,
     type: 3}
+  GravityMultiplier: 1

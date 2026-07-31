@@ -774,8 +774,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private void ExecuteAttackCommands(PlayerMoveCommand cmd)
 	{
 		_isFiringLightning = HasLightningGun() && cmd.Input.Attack1Held;
+		if (base.entity.IsOwner())
+		{
+			executeLightningCommand(cmd);
+		}
 
-		
+
 		if (HasPistol() && cmd.Input.Attack1Held)
 		{
 			_lastPistolFireInputTime = Time.time;
@@ -926,6 +930,87 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		projectile.Initialize(this, base.state.ExecutingAttackID, throwVelocity);
 	}
 
+	// Authoritative lightning tick. Runs on the owner (the host) for every player, from inside
+	// the command, so the hit test can be rewound to the frame the shooter actually saw.
+	private void executeLightningCommand(PlayerMoveCommand cmd)
+	{
+		if (!_isFiringLightning)
+		{
+			_lightningAmmoAccumulator = 0f;
+			_lightningDamageAccumulator = 0f;
+			return;
+		}
+		if (base.state.CurrentWeaponAmmo <= 0)
+		{
+			base.state.EquippedWeapon = 0;
+			_lightningAmmoAccumulator = 0f;
+			_lightningDamageAccumulator = 0f;
+			return;
+		}
+		if (LightningStats.MuzzlePoint != null)
+		{
+			applyLightningDamage(cmd);
+		}
+		_lightningAmmoAccumulator += LightningStats.AmmoDrainPerSecond * BoltNetwork.frameDeltaTime;
+		if (_lightningAmmoAccumulator >= 1f)
+		{
+			int num = Mathf.FloorToInt(_lightningAmmoAccumulator);
+			base.state.CurrentWeaponAmmo = Mathf.Max(0, base.state.CurrentWeaponAmmo - num);
+			_lightningAmmoAccumulator -= num;
+		}
+	}
+
+	private void applyLightningDamage(PlayerMoveCommand cmd)
+	{
+		Vector3 origin = LightningStats.MuzzlePoint.position;
+		Vector3 direction = AimCameraPosition.forward;
+		Ray ray = new Ray(origin, direction);
+		BoltPhysicsHits boltPhysicsHits = BoltNetwork.RaycastAll(ray, cmd.ServerFrame);
+		SantaCharacterController santaCharacterController = null;
+		BoltPhysicsHit hit = default(BoltPhysicsHit);
+		for (int i = 0; i < boltPhysicsHits.count; i++)
+		{
+			BoltPhysicsHit boltPhysicsHit = boltPhysicsHits.GetHit(i);
+			if (boltPhysicsHit.distance > LightningStats.Range || boltPhysicsHit.hitbox.hitboxType == BoltHitboxType.Proximity)
+			{
+				continue;
+			}
+			SantaCharacterController component = boltPhysicsHit.body.GetComponent<SantaCharacterController>();
+			if (component != null && component != this)
+			{
+				santaCharacterController = component;
+				hit = boltPhysicsHit;
+				break;
+			}
+		}
+		if (santaCharacterController == null)
+		{
+			return;
+		}
+		int layerMask = 1 << LayerMask.NameToLayer("Environment");
+		RaycastHit hitInfo;
+		if (Physics.Raycast(ray, out hitInfo, LightningStats.Range, layerMask) && hitInfo.distance < hit.distance)
+		{
+			return;
+		}
+		_lightningDamageAccumulator += LightningStats.DamagePerSecond * BoltNetwork.frameDeltaTime;
+		if (_lightningDamageAccumulator < 1f)
+		{
+			return;
+		}
+		int num = Mathf.FloorToInt(_lightningDamageAccumulator);
+		_lightningDamageAccumulator -= num;
+		Vector3 worldImpactPosition = origin + direction * hit.distance;
+		if (hit.hitbox.hitboxType == BoltHitboxType.Body)
+		{
+			santaCharacterController.TryTakeDamageFromAttack(this, num, direction, base.state.ExecutingAttackID, WeaponType.LightningGun, worldImpactPosition);
+		}
+		else
+		{
+			santaCharacterController.TryTakeReindeerDamageFromAttack(this, num, direction, base.state.ExecutingAttackID, WeaponType.LightningGun, worldImpactPosition);
+		}
+	}
+
 	private void UpdateLightningBeam(bool isFiring)
 	{
 		if (!isFiring)
@@ -949,14 +1034,15 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			return;
 		}
 
-		if (base.entity.IsOwner())
+		if (base.state.CurrentWeaponAmmo <= 0)
 		{
-			if (base.state.CurrentWeaponAmmo <= 0)
+			LightningBeamInstance.SetActive(false);
+			if (LightningAudioSource != null && LightningAudioSource.isPlaying)
 			{
-				base.state.EquippedWeapon = 0;
-				_wasFiringLightningLastFrame = false;
-				return;
+				LightningAudioSource.Stop();
 			}
+			_wasFiringLightningLastFrame = false;
+			return;
 		}
 
 		if (!_wasFiringLightningLastFrame)
@@ -977,42 +1063,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		_wasFiringLightningLastFrame = true;
 
-		Vector3 origin = LightningStats.MuzzlePoint.position;
-		Vector3 direction = AimCameraPosition.forward;
-
-		RaycastHit hit;
-		if (Physics.Raycast(origin, direction, out hit, LightningStats.Range))
-		{
-			if (base.entity.IsOwner())
-			{
-				SantaCharacterController target = hit.collider.GetComponentInParent<SantaCharacterController>();
-				if (target != null)
-				{
-					_lightningDamageAccumulator += LightningStats.DamagePerSecond * Time.deltaTime;
-					if (_lightningDamageAccumulator >= 1f)
-					{
-						int wholeDamage = Mathf.FloorToInt(_lightningDamageAccumulator);
-						target.TryTakeDamageFromAttack(this, wholeDamage, direction, base.state.ExecutingAttackID, WeaponType.LightningGun, hit.point);
-						_lightningDamageAccumulator -= wholeDamage;
-					}
-				}
-			}
-		}
-
-		if (base.entity.IsOwner())
-		{
-			_lightningAmmoAccumulator += LightningStats.AmmoDrainPerSecond * Time.deltaTime;
-			if (_lightningAmmoAccumulator >= 1f)
-			{
-				int wholeAmmoToRemove = Mathf.FloorToInt(_lightningAmmoAccumulator);
-				base.state.CurrentWeaponAmmo = Mathf.Max(0, base.state.CurrentWeaponAmmo - wholeAmmoToRemove);
-				_lightningAmmoAccumulator -= wholeAmmoToRemove;
-			}
-		}
-
+		// Hit detection and ammo drain are authoritative and live in executeLightningCommand;
+		// from here down this method is purely the local beam presentation.
 		// just follow the muzzle, no stretching/scaling
-		LightningBeamInstance.transform.position = origin;
-		LightningBeamInstance.transform.rotation = Quaternion.LookRotation(direction);
+		LightningBeamInstance.transform.position = LightningStats.MuzzlePoint.position;
+		LightningBeamInstance.transform.rotation = Quaternion.LookRotation(AimCameraPosition.forward);
 	}
 	private float getTimeBetweenCurrentWeaponAttacks()
 	{
