@@ -32,10 +32,11 @@ public class WeaponAmmoUI : MonoBehaviour
     }
 
     WeaponType equipped = (WeaponType)_santaCharacter.GetEquippedWeaponTypeAsInt();
-    bool hasAmmoBasedWeapon = equipped == WeaponType.Crossbow 
-        || equipped == WeaponType.Pistol 
+    bool hasAmmoBasedWeapon = equipped == WeaponType.Crossbow
+        || equipped == WeaponType.Pistol
         || equipped == WeaponType.LightningGun
-        || equipped == WeaponType.SnowballLauncher;
+        || equipped == WeaponType.SnowballLauncher
+        || equipped == WeaponType.ShockRifle;
 
     if (hasAmmoBasedWeapon)
     {

@@ -12,5 +12,6 @@ public enum WeaponType
 	LightningGun = 6,
 	SnowballLauncher = 7,
 	Grenade = 8,
-	BoxingGloves = 9
+	BoxingGloves = 9,
+	ShockRifle = 10
 }

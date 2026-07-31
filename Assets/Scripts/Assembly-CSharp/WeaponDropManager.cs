@@ -180,6 +180,9 @@ public class WeaponDropManager : GlobalEventListener
 		case WeaponType.BoxingGloves:
 			prefabId = SantaCharacterController.MakePrefabId(19);
 			break;
+		case WeaponType.ShockRifle:
+			prefabId = SantaCharacterController.MakePrefabId(20);
+			break;
 
 		default:
 			throw new NotImplementedException("No prefab assigned to weapon: " + weaponType);

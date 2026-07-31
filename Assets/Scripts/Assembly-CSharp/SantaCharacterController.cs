@@ -164,6 +164,14 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public bool ShowGrenadeArcImpactMarker = true; // ring showing the blast radius where it lands
 	public LayerMask GrenadeArcCollisionMask = ~(1 << 2); // everything except Ignore Raycast
 
+	[Header("Shock Rifle")]
+	// Slow, hitscan, hits hard - reuses SpawnDistance/TimeBetweenAttacks/MovementMultiplier/
+	// MuzzlePoint/MuzzleFlash/Range from RangedWeaponStats.
+	public RangedWeaponStats ShockRifleStats;
+	public int ShockRifleDamage = 75;
+	// Rail shots punch through everyone in the line rather than stopping at the first target.
+	public bool ShockRiflePierces = true;
+
 	[Header("Boxing Gloves")]
 	public int BoxingGlovesDamage;
 	public float TimeBetweenBoxingGlovesAttacks;
@@ -477,7 +485,9 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		UpperAnimator.SetBool("HasLightningGun", equippedWeapon == WeaponType.LightningGun);
 		UpperAnimator.SetBool("IsUnarmed", equippedWeapon == WeaponType.None);
 		LowerAnimator.SetBool("HasReindeer", equippedWeapon == WeaponType.Reindeer);
-		UpperAnimator.SetBool("HasSnowballLauncher", equippedWeapon == WeaponType.SnowballLauncher);
+		// The rifle rides the launcher's idle/fire states, so it drives the same bool. Split it
+		// out once it has clips of its own.
+		UpperAnimator.SetBool("HasSnowballLauncher", equippedWeapon == WeaponType.SnowballLauncher || equippedWeapon == WeaponType.ShockRifle);
 		setUpperAnimatorBool("HasGrenade", equippedWeapon == WeaponType.Grenade);
 		if (HasBeenUnderLocalControl())
 		{
@@ -773,6 +783,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		if (HasSnowballLauncher())
 		{
 			return SnowballStats.MovementMultiplier;
+		}
+		if (HasShockRifle())
+		{
+			return ShockRifleStats.MovementMultiplier;
 		}
 		if (HasBoxingGloves())
 		{
@@ -1099,6 +1113,15 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 					base.state.EquippedWeapon = 0;
 				}
 			}
+			if (HasShockRifle())
+			{
+				base.state.CurrentWeaponAmmo--;
+				fireShockRifle(cmd);
+				if (base.state.CurrentWeaponAmmo == 0)
+				{
+					base.state.EquippedWeapon = 0;
+				}
+			}
 		}
 		tryRenderAttackID(attackID, attackDirection);
 	}
@@ -1115,6 +1138,57 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			base.state.EquippedWeapon = 0; // instantly gone after one throw
 		}
 		tryRenderAttackID(attackID, (CharacterDirection)GrenadeThrowAttackDirection);
+	}
+
+	// Hitscan rail shot. Runs on the owner only, and rewinds hitboxes to the frame the shooter
+	// was actually looking at - same lag compensation the crossbow and lightning gun use, which
+	// matters far more here because one shot is most of a health bar.
+	private void fireShockRifle(PlayerMoveCommand cmd)
+	{
+		if (ShockRifleStats.MuzzleFlash != null)
+		{
+			ShockRifleStats.MuzzleFlash.Play();
+		}
+		Vector3 origin = AimCameraPosition.position;
+		Vector3 direction = AimCameraPosition.forward;
+		Ray ray = new Ray(origin, direction);
+		float num = ((ShockRifleStats.Range > 0f) ? ShockRifleStats.Range : 200f);
+
+		// Walls stop the rail, so find where it actually ends before looking for players.
+		int layerMask = 1 << LayerMask.NameToLayer("Environment");
+		RaycastHit hitInfo;
+		if (Physics.Raycast(ray, out hitInfo, num, layerMask))
+		{
+			num = hitInfo.distance;
+		}
+
+		BoltPhysicsHits boltPhysicsHits = BoltNetwork.RaycastAll(ray, cmd.ServerFrame);
+		for (int i = 0; i < boltPhysicsHits.count; i++)
+		{
+			BoltPhysicsHit hit = boltPhysicsHits.GetHit(i);
+			if (hit.distance > num || hit.hitbox.hitboxType == BoltHitboxType.Proximity)
+			{
+				continue;
+			}
+			SantaCharacterController component = hit.body.GetComponent<SantaCharacterController>();
+			if (component == null || component == this)
+			{
+				continue;
+			}
+			Vector3 worldImpactPosition = origin + direction * hit.distance;
+			if (hit.hitbox.hitboxType == BoltHitboxType.Body)
+			{
+				component.TryTakeDamageFromAttack(this, ShockRifleDamage, direction, base.state.ExecutingAttackID, WeaponType.ShockRifle, worldImpactPosition);
+			}
+			else
+			{
+				component.TryTakeReindeerDamageFromAttack(this, ShockRifleDamage, direction, base.state.ExecutingAttackID, WeaponType.ShockRifle, worldImpactPosition);
+			}
+			if (!ShockRiflePierces)
+			{
+				break;
+			}
+		}
 	}
 
 	private void spawnCrossbowBolt(int commandServerFrame)
@@ -1543,6 +1617,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return SnowballStats.TimeBetweenAttacks;
 		}
+		if (HasShockRifle())
+		{
+			return ShockRifleStats.TimeBetweenAttacks;
+		}
 		if (HasBoxingGloves())
 		{
 			return TimeBetweenBoxingGlovesAttacks;
@@ -1589,6 +1667,13 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			  Debug.Log("Snowball fire branch reached, clips: " + Singleton<AudioLibrary>.Instance.SnowballThrow.Length);
 			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.SnowballThrow, UpperAnimator.transform);
+			UpperAnimator.SetTrigger("FireSnowball");
+		}
+		else if (HasShockRifle())
+		{
+			// Borrowing the launcher's fire animation and the pistol's report until the rifle
+			// gets its own clip and sound.
+			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.PistolFire, UpperAnimator.transform);
 			UpperAnimator.SetTrigger("FireSnowball");
 		}
 		else if (HasLightningGun())
@@ -1701,10 +1786,15 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		return base.state.EquippedWeapon == (int)WeaponType.BoxingGloves;
 	}
 
+	public bool HasShockRifle()
+	{
+		return base.state.EquippedWeapon == (int)WeaponType.ShockRifle;
+	}
+
 	// Weapons that aim down sights on Attack2 and fire along AimCameraPosition.
 	public bool HasAimableRangedWeapon()
 	{
-		return HasCrossbow() || HasPistol() || HasSnowballLauncher() || HasLightningGun();
+		return HasCrossbow() || HasPistol() || HasSnowballLauncher() || HasLightningGun() || HasShockRifle();
 	}
 
 	public bool HasReindeer()
