@@ -3,7 +3,7 @@ public enum WeaponType
 	None = 0,
 	Sword = 1,
 	Crossbow = 2,
-	BoxingGloves = 3,
+	Rifle = 3,
 	Reindeer = 4,
 
 
@@ -11,5 +11,6 @@ public enum WeaponType
 	Pistol = 5,
 	LightningGun = 6,
 	SnowballLauncher = 7,
-	Grenade = 8
+	Grenade = 8,
+	BoxingGloves = 9
 }
