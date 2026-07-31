@@ -126,6 +126,21 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public float GrenadeExplosionRadius;
 	public float GrenadeThrowForce;
 
+	[Header("Grenade Trajectory Preview")]
+	public bool ShowGrenadeArc = true;
+	public bool ShowGrenadeArcOnlyWhileAiming; // when on, the arc only appears while holding right mouse
+	// Must match GravityMultiplier on the grenade projectile prefab's SnowballProjectile, or the
+	// preview will predict a different flight than the thrown grenade actually takes.
+	public float GrenadeArcGravityMultiplier = 2f;
+	public float GrenadeArcProjectileRadius = 0.2f; // the grenade prefab's capsule radius
+	public float GrenadeArcMaxTime = 3f;
+	public float GrenadeArcPointInterval = 0.05f;
+	public float GrenadeArcWidth = 0.06f;
+	public Color GrenadeArcColor = new Color(1f, 0.45f, 0.15f, 0.9f);
+	public Material GrenadeArcMaterial; // optional; a built-in unlit shader is used when empty
+	public bool ShowGrenadeArcImpactMarker = true; // ring showing the blast radius where it lands
+	public LayerMask GrenadeArcCollisionMask = ~(1 << 2); // everything except Ignore Raycast
+
 	[Header("Boxing Gloves")]
 	public int BoxingGlovesDamage;
 	public float TimeBetweenBoxingGlovesAttacks;
@@ -175,6 +190,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private bool _wasFiringLightningLastFrame;
 	private float _lightningAmmoAccumulator;
 	private float _lightningDamageAccumulator;
+	private GrenadeArcPreview _grenadeArcPreview;
 
 	public GroundType GetGroundType()
 	{
@@ -906,10 +922,19 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		boltEntity.GetComponent<CrossbowProjectile>().Intialize(this, base.state.ExecutingAttackID, spawnPosition, AimCameraPosition.eulerAngles, commandServerFrame);
 	}
 
+	// Single source of truth for the throw so the preview arc and the grenade that actually
+	// spawns can't drift apart.
+	private void getGrenadeThrowVector(out Vector3 spawnPosition, out Vector3 throwVelocity)
+	{
+		spawnPosition = GrenadeStats.MuzzlePoint.position + GrenadeStats.MuzzlePoint.forward * GrenadeStats.SpawnDistance;
+		throwVelocity = AimCameraPosition.forward * GrenadeThrowForce;
+	}
+
 	private void spawnGrenade(int commandServerFrame)
 	{
-		Vector3 spawnPosition = GrenadeStats.MuzzlePoint.position + GrenadeStats.MuzzlePoint.forward * GrenadeStats.SpawnDistance;
-		Vector3 throwVelocity = AimCameraPosition.forward * GrenadeThrowForce;
+		Vector3 spawnPosition;
+		Vector3 throwVelocity;
+		getGrenadeThrowVector(out spawnPosition, out throwVelocity);
 
 		if (GrenadeStats.MuzzleFlash != null)
 		{
@@ -1256,6 +1281,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		// ticking for a frame or two while the session tears down on the way back to the menu.
 		if (_isDetached || base.entity == null || !base.entity.isAttached)
 		{
+			hideGrenadeArc();
 			return;
 		}
 
@@ -1271,6 +1297,53 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			PlayerCamera.fieldOfView = Mathf.Lerp(PlayerCamera.fieldOfView, targetFOV, Time.deltaTime * FOVLerpSpeed);
 
 			UpdateLightningBeam(_isFiringLightning);
+			updateGrenadeArc();
+		}
+		else
+		{
+			hideGrenadeArc();
+		}
+	}
+
+	// Only the throwing player sees their own arc; remote copies of this character never draw one.
+	private void updateGrenadeArc()
+	{
+		if (!ShowGrenadeArc || !HasGrenade() || !IsAlive() || GrenadeStats.MuzzlePoint == null || AimCameraPosition == null)
+		{
+			hideGrenadeArc();
+			return;
+		}
+		if (ShowGrenadeArcOnlyWhileAiming && !_attack2Held)
+		{
+			hideGrenadeArc();
+			return;
+		}
+		if (_grenadeArcPreview == null)
+		{
+			_grenadeArcPreview = new GrenadeArcPreview(base.transform);
+		}
+		_grenadeArcPreview.ArcMaterial = GrenadeArcMaterial;
+		_grenadeArcPreview.ArcColor = GrenadeArcColor;
+		_grenadeArcPreview.ArcWidth = GrenadeArcWidth;
+		_grenadeArcPreview.MaxSimulationTime = GrenadeArcMaxTime;
+		_grenadeArcPreview.PointInterval = GrenadeArcPointInterval;
+		_grenadeArcPreview.ProjectileRadius = GrenadeArcProjectileRadius;
+		_grenadeArcPreview.GravityMultiplier = GrenadeArcGravityMultiplier;
+		_grenadeArcPreview.ExplosionRadius = GrenadeExplosionRadius;
+		_grenadeArcPreview.ShowImpactMarker = ShowGrenadeArcImpactMarker;
+		_grenadeArcPreview.CollisionMask = GrenadeArcCollisionMask;
+
+		Vector3 spawnPosition;
+		Vector3 throwVelocity;
+		getGrenadeThrowVector(out spawnPosition, out throwVelocity);
+		_grenadeArcPreview.Show(spawnPosition, throwVelocity, this);
+	}
+
+	private void hideGrenadeArc()
+	{
+		if (_grenadeArcPreview != null)
+		{
+			_grenadeArcPreview.Hide();
 		}
 	}
 
