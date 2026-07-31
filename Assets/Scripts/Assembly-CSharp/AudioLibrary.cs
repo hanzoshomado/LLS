@@ -41,6 +41,8 @@ public class AudioLibrary : Singleton<AudioLibrary>
 	public AudioClipDefinition[] CrossbowFire;
 
 	public AudioClipDefinition[] PistolFire;
+	public AudioClipDefinition[] SnowballThrow;
+	public AudioClipDefinition[] LightningFire;
 
 	public AudioClipDefinition[] CrossbowFlyBy;
 

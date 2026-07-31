@@ -52,7 +52,7 @@ MonoBehaviour:
   PressKeyPrefab: {fileID: 114703437598541787, guid: 0784777f278d66a4cbc389126e27ecf9,
     type: 3}
   PickupRange: 5
-  StartAmmo: 15
+  StartAmmo: 9
 --- !u!114 &114884547391421755
 MonoBehaviour:
   m_ObjectHideFlags: 0

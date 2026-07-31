@@ -111,6 +111,20 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	[Header("Lightning")]
 	public RangedWeaponStats LightningStats;
 	public GameObject LightningBeamInstance;
+	public AudioSource LightningAudioSource; // assign in Inspector, put it on/near the muzzle
+
+	[Header("SnowballLauncher")]
+	public RangedWeaponStats SnowballStats; // reuse SpawnDistance, TimeBetweenAttacks, MovementMultiplier, MuzzlePoint, MuzzleFlash
+	public int SnowballDamage;
+	public float SnowballExplosionRadius;
+	public float SnowballThrowForce;
+
+	[Header("Grenade")]
+	public RangedWeaponStats GrenadeStats;
+	public int GrenadeDamage;
+	public float GrenadeExplosionRadius;
+	public float GrenadeThrowForce;
+
 
 	[Header("Win Animation")]
 	public float WinCameraRotationMultiplier;
@@ -289,7 +303,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		else
 		{
-			   UpperAnimator.SetBool("IsAiming", _isInAimState);
+
 			UpperAnimator.SetBool("IsAiming", _isInAimState);
 		}
 
@@ -335,6 +349,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		UpperAnimator.SetBool("HasLightningGun", equippedWeapon == WeaponType.LightningGun);
 		UpperAnimator.SetBool("IsUnarmed", equippedWeapon == WeaponType.None);
 		LowerAnimator.SetBool("HasReindeer", equippedWeapon == WeaponType.Reindeer);
+		UpperAnimator.SetBool("HasSnowballLauncher", equippedWeapon == WeaponType.SnowballLauncher);
 		if (HasBeenUnderLocalControl())
 		{
 			if (HasReindeer())
@@ -757,9 +772,13 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		bool isFiring = HasPistol() && (Time.time - _lastPistolFireInputTime < 0.15f);
 		UpperAnimator.SetBool("IsFiringPistol", isFiring);
-		Debug.Log("Frame: " + Time.frameCount + " | Attack1Held: " + cmd.Input.Attack1Held + " | IsFiringPistol: " + isFiring);
+		//Debug.Log("Frame: " + Time.frameCount + " | Attack1Held: " + cmd.Input.Attack1Held + " | IsFiringPistol: " + isFiring);
 
 		bool flag = (cmd.Input.Attack2Held && HasCrossbow()) || (cmd.Input.Attack1Held && HasLightningGun());
+		if (HasLightningGun())
+		{
+			Debug.Log("Lightning flag check: Attack1Held=" + cmd.Input.Attack1Held + " HasLightningGun=" + HasLightningGun() + " flag=" + flag + " state.IsAiming=" + base.state.IsAiming + " IsOwner=" + base.entity.IsOwner());
+		}
 		if (flag && !base.state.IsAiming)
 		{
 			if (base.entity.IsOwner())
@@ -813,6 +832,21 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 					base.state.EquippedWeapon = 0;
 				}
 			}
+			if (HasSnowballLauncher())
+			{
+				base.state.CurrentWeaponAmmo--;
+				spawnSnowball(cmd.ServerFrame);
+				if (base.state.CurrentWeaponAmmo == 0)
+				{
+					base.state.EquippedWeapon = 0;
+				}
+			}
+			if (HasGrenade())
+			{
+				spawnGrenade(cmd.ServerFrame);
+				base.state.EquippedWeapon = 0; // instantly gone after one throw
+			}
+
 		}
 		tryRenderAttackID(attackID, attackDirection);
 	}
@@ -824,7 +858,24 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		boltEntity.GetComponent<CrossbowProjectile>().Intialize(this, base.state.ExecutingAttackID, spawnPosition, AimCameraPosition.eulerAngles, commandServerFrame);
 	}
 
-	private static PrefabId MakePrefabId(int id)
+	private void spawnSnowball(int commandServerFrame)
+	{
+		Vector3 spawnPosition = SnowballStats.MuzzlePoint.position + SnowballStats.MuzzlePoint.forward * SnowballStats.SpawnDistance;
+		Vector3 throwVelocity = AimCameraPosition.forward * SnowballThrowForce;
+
+		if (SnowballStats.MuzzleFlash != null)
+		{
+			SnowballStats.MuzzleFlash.Play();
+		}
+
+		BoltEntity boltEntity = BoltNetwork.Instantiate(MakePrefabId(15), spawnPosition, Quaternion.identity);
+		SnowballProjectile projectile = boltEntity.GetComponent<SnowballProjectile>();
+		projectile.Damage = SnowballDamage;
+		projectile.ExplosionRadius = SnowballExplosionRadius;
+		projectile.Initialize(this, base.state.ExecutingAttackID, throwVelocity);
+	}
+
+	public static PrefabId MakePrefabId(int id)
 	{
 		ConstructorInfo ctor = typeof(PrefabId).GetConstructor(
 			BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public,
@@ -848,6 +899,23 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		boltEntity.GetComponent<CrossbowProjectile>().Intialize(this, base.state.ExecutingAttackID, spawnPosition, AimCameraPosition.eulerAngles, commandServerFrame);
 	}
 
+	private void spawnGrenade(int commandServerFrame)
+	{
+		Vector3 spawnPosition = GrenadeStats.MuzzlePoint.position + GrenadeStats.MuzzlePoint.forward * GrenadeStats.SpawnDistance;
+		Vector3 throwVelocity = AimCameraPosition.forward * GrenadeThrowForce;
+
+		if (GrenadeStats.MuzzleFlash != null)
+		{
+			GrenadeStats.MuzzleFlash.Play();
+		}
+
+		BoltEntity boltEntity = BoltNetwork.Instantiate(MakePrefabId(17), spawnPosition, Quaternion.identity); // next free ID
+		SnowballProjectile projectile = boltEntity.GetComponent<SnowballProjectile>();
+		projectile.Damage = GrenadeDamage;
+		projectile.ExplosionRadius = GrenadeExplosionRadius;
+		projectile.Initialize(this, base.state.ExecutingAttackID, throwVelocity);
+	}
+
 	private void UpdateLightningBeam(bool isFiring)
 	{
 		if (!isFiring)
@@ -855,6 +923,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			if (LightningBeamInstance != null)
 			{
 				LightningBeamInstance.SetActive(false);
+			}
+			if (LightningAudioSource != null && LightningAudioSource.isPlaying)
+			{
+				LightningAudioSource.Stop();
 			}
 			_wasFiringLightningLastFrame = false;
 			_lightningAmmoAccumulator = 0f;
@@ -884,6 +956,13 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			if (ps != null)
 			{
 				ps.Play();
+			}
+			if (LightningAudioSource != null && LightningStats.MuzzlePoint != null)
+			{
+				AudioClipDefinition clipDef = Singleton<AudioLibrary>.Instance.LightningFire[0]; // or randomize like PlayClipAtTransform likely does
+				LightningAudioSource.clip = clipDef.Clip; // adjust field name based on AudioClipDefinition's actual structure
+				LightningAudioSource.loop = true;
+				LightningAudioSource.Play();
 			}
 		}
 		_wasFiringLightningLastFrame = true;
@@ -943,6 +1022,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return LightningStats.TimeBetweenAttacks;
 		}
+	    if (HasSnowballLauncher())
+		{
+			return SnowballStats.TimeBetweenAttacks;
+		}
+	
 		return TimeBetweenFistAttacks;
 	}
 
@@ -967,6 +1051,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.PistolFire, UpperAnimator.transform);
 			Debug.Log("Setting FirePistol trigger");
 			UpperAnimator.SetTrigger("FirePistol");
+		}
+		else if (HasSnowballLauncher())
+		{
+			  Debug.Log("Snowball fire branch reached, clips: " + Singleton<AudioLibrary>.Instance.SnowballThrow.Length);
+			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.SnowballThrow, UpperAnimator.transform);
+			UpperAnimator.SetTrigger("FireSnowball");
 		}
 		else if (!HasAnyEquippedWeapon())
 		{
@@ -1058,6 +1148,14 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public bool HasLightningGun()
 	{
 		return base.state.EquippedWeapon == (int)WeaponType.LightningGun;
+	}
+	public bool HasSnowballLauncher()
+	{
+		return base.state.EquippedWeapon == (int)WeaponType.SnowballLauncher;
+	}
+	public bool HasGrenade()
+	{
+		return base.state.EquippedWeapon == (int)WeaponType.Grenade;
 	}
 
 	public bool HasReindeer()

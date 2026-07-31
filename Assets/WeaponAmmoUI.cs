@@ -24,24 +24,27 @@ public class WeaponAmmoUI : MonoBehaviour
 	}
 
 	private void Update()
-	{
-		if (_santaCharacter == null || _santaCharacter.IsDetached())
-		{
-			AmmoCounterRoot.SetActive(false);
-			return;
-		}
+{
+    if (_santaCharacter == null || _santaCharacter.IsDetached())
+    {
+        AmmoCounterRoot.SetActive(false);
+        return;
+    }
 
-		WeaponType equipped = (WeaponType)_santaCharacter.GetEquippedWeaponTypeAsInt();
-		bool hasAmmoBasedWeapon = equipped == WeaponType.Crossbow || equipped == WeaponType.Pistol;
+    WeaponType equipped = (WeaponType)_santaCharacter.GetEquippedWeaponTypeAsInt();
+    bool hasAmmoBasedWeapon = equipped == WeaponType.Crossbow 
+        || equipped == WeaponType.Pistol 
+        || equipped == WeaponType.LightningGun
+        || equipped == WeaponType.SnowballLauncher;
 
-		if (hasAmmoBasedWeapon)
-		{
-			AmmoCounterRoot.SetActive(true);
-			AmmoCounterLabel.text = _santaCharacter.state.CurrentWeaponAmmo.ToString();
-		}
-		else
-		{
-			AmmoCounterRoot.SetActive(false);
-		}
-	}
+    if (hasAmmoBasedWeapon)
+    {
+        AmmoCounterRoot.SetActive(true);
+        AmmoCounterLabel.text = _santaCharacter.state.CurrentWeaponAmmo.ToString();
+    }
+    else
+    {
+        AmmoCounterRoot.SetActive(false);
+    }
+}
 }

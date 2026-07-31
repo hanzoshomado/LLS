@@ -166,7 +166,13 @@ public class WeaponDropManager : GlobalEventListener
 			prefabId = BoltPrefabs.ReindeerPickup;
 			break;
 		case WeaponType.Pistol:
-			prefabId = MakePrefabId(13);
+			prefabId = SantaCharacterController.MakePrefabId(13);
+			break;
+		case WeaponType.LightningGun:
+			prefabId = SantaCharacterController.MakePrefabId(14);
+			break;
+		case WeaponType.SnowballLauncher:
+			prefabId = SantaCharacterController.MakePrefabId(16);
 			break;
 		default:
 			throw new NotImplementedException("No prefab assigned to weapon: " + weaponType);

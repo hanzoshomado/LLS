@@ -181,6 +181,14 @@ MonoBehaviour:
   - Clip: {fileID: 8300000, guid: 59dd9c1404e214d4995dc172a386bd61, type: 3}
     MixerGroup: {fileID: 0}
     PitchVariation: 0
+  SnowballThrow:
+  - Clip: {fileID: 8300000, guid: 4407e5e7fa1870246909cdcc71d57e08, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  LightningFire:
+  - Clip: {fileID: 8300000, guid: 86006a03683b443bb97b353d468652d6, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
   CrossbowFlyBy:
   - Clip: {fileID: 8300000, guid: cb073976f9c08d849b93765fc7e31560, type: 3}
     MixerGroup: {fileID: 24300076, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}

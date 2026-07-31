@@ -9,5 +9,7 @@ public enum WeaponType
 
 	// COOL weapons
 	Pistol = 5,
-	LightningGun = 6
+	LightningGun = 6,
+	SnowballLauncher = 7,
+	Grenade = 8
 }
