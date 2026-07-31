@@ -1263,7 +1263,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 		if (HasBeenUnderLocalControl())
 		{
-			float targetFOV = base.state.IsSprinting ? _baseFOV + SprintFOVBoost : _baseFOV;
+			// IsSprinting is just "sprint key held with stamina left", so on its own it fires
+			// while standing still. The speed boost and stamina drain both require movement
+			// too (flag2 && flag5 in ExecuteCommand); this keeps the FOV consistent with them.
+			bool isSprintingAndMoving = base.state.IsSprinting && base.state.IsMoving;
+			float targetFOV = (isSprintingAndMoving ? (_baseFOV + SprintFOVBoost) : _baseFOV);
 			PlayerCamera.fieldOfView = Mathf.Lerp(PlayerCamera.fieldOfView, targetFOV, Time.deltaTime * FOVLerpSpeed);
 
 			UpdateLightningBeam(_isFiringLightning);
