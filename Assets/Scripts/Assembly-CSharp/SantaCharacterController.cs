@@ -64,6 +64,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	[Header("Health / Death")]
 	public int StartHitpoints;
+	public int HitpointsHealedPerKill = 25; // set to 0 to turn heal-on-kill off
 	public Transform BloodSpawnPoint;
 	public SantaCharacterRagdollSource SantaCharacterRagdollSource;
 	public float DeathFallVelocity;
@@ -1353,6 +1354,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			createDamageVFXAndSound(damageDirection, weaponUsed, true);
 			if (value == 0)
 			{
+				if (attackingCharacter != this)
+				{
+					attackingCharacter.gainKillHeal();
+				}
 				dropCurrentWeapon();
 				destroyThisAndCreateRagdoll(damageDirection);
 			}
@@ -1361,6 +1366,17 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 				createCrossBowStickEvent(damageDirection, false, worldImpactPosition);
 			}
 		}
+	}
+
+	// Called on this character when it lands a killing blow. Host-only: the caller already
+	// runs behind BoltNetwork.isServer, and HitPoints replicates the result to everyone.
+	private void gainKillHeal()
+	{
+		if (HitpointsHealedPerKill <= 0 || _isDetached || !IsAlive())
+		{
+			return;
+		}
+		base.state.HitPoints = Mathf.Clamp(base.state.HitPoints + HitpointsHealedPerKill, 0, StartHitpoints);
 	}
 
 	private void destroyThisAndCreateRagdoll(Vector3 damageDirection)

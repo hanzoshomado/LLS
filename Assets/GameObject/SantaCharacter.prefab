@@ -2679,7 +2679,8 @@ MonoBehaviour:
   SprintingStaminaDrainedPerSecond: 40
   StaminaRegenPerSecond: 15
   StartStamina: 100
-  StartHitpoints: 100
+  StartHitpoints: 130
+  HitpointsHealedPerKill: 34
   BloodSpawnPoint: {fileID: 4924050743934937}
   SantaCharacterRagdollSource: {fileID: 114477046003934300}
   DeathFallVelocity: 60
@@ -2781,7 +2782,7 @@ MonoBehaviour:
   GrenadeDamage: 50
   GrenadeExplosionRadius: 5
   GrenadeThrowForce: 70
-  BoxingGlovesDamage: 68
+  BoxingGlovesDamage: 42
   TimeBetweenBoxingGlovesAttacks: 0.8
   BoxingGlovesMovementMultiplier: 1
   WinCameraRotationMultiplier: 1
