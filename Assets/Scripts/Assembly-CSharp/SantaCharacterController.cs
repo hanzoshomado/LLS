@@ -211,6 +211,17 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private float _lastGroundLandTime;
 	private bool _wasOnGround;
 	private bool _isPlayingWinAnimation;
+	private class JumpPadUsage
+	{
+		public JumpPad Pad;
+
+		public int UseCount;
+
+		public float LastUseServerTime;
+	}
+
+	private readonly System.Collections.Generic.List<JumpPadUsage> _jumpPadUsages = new System.Collections.Generic.List<JumpPadUsage>();
+
 	private float _lastPistolFireInputTime = -999f;
 	private float _lastLightningFireTime = -999f;
 	private bool _isFiringLightning;
@@ -794,12 +805,74 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		JumpPad component = hitInfo.collider.GetComponent<JumpPad>();
 		if (component != null)
 		{
-			_velocity = component.GetLaunchVelocity();
+			Vector3 launchVelocity = component.GetFullLaunchVelocity();
+			if (launchVelocity.sqrMagnitude < 0.0001f)
+			{
+				return;
+			}
+			JumpPadSettings settings = Singleton<JumpPadSettings>.Instance;
+			float cooldownSeconds = ((settings != null) ? settings.CooldownSeconds : 3f);
+			JumpPadUsage usage = getOrCreateJumpPadUsage(component);
+			// The cooldown is there to stop other players piling onto a pad someone just used.
+			// Whoever triggered it keeps bouncing - the height decay is what limits them.
+			bool flag = usage.UseCount > 0 && BoltNetwork.serverTime - usage.LastUseServerTime < cooldownSeconds;
+			if (component.IsOnCooldown() && !flag)
+			{
+				return;
+			}
+			_velocity = launchVelocity * getJumpPadHeightMultiplier(component, isFirst);
 			if (isFirst)
 			{
 				component.PlayAndDispatchJumpEffect(HasBeenUnderLocalControl());
+				if (base.entity.IsOwner())
+				{
+					JumpPadSettings instance = Singleton<JumpPadSettings>.Instance;
+					component.ServerBeginCooldown((instance != null) ? instance.CooldownSeconds : 3f);
+				}
 			}
 		}
+	}
+
+	private JumpPadUsage getOrCreateJumpPadUsage(JumpPad pad)
+	{
+		for (int i = 0; i < _jumpPadUsages.Count; i++)
+		{
+			if (_jumpPadUsages[i].Pad == pad)
+			{
+				return _jumpPadUsages[i];
+			}
+		}
+		JumpPadUsage jumpPadUsage = new JumpPadUsage();
+		jumpPadUsage.Pad = pad;
+		_jumpPadUsages.Add(jumpPadUsage);
+		return jumpPadUsage;
+	}
+
+	// Repeated bounces on the same pad get weaker for that player only - someone else still
+	// gets a full first launch. Both the host and the bouncing client run this off their own
+	// copy of the same history and the same scene settings, so they agree without any syncing.
+	private float getJumpPadHeightMultiplier(JumpPad pad, bool isFirst)
+	{
+		JumpPadSettings instance = Singleton<JumpPadSettings>.Instance;
+		if (instance == null)
+		{
+			return 1f;
+		}
+		float serverTime = BoltNetwork.serverTime;
+		JumpPadUsage jumpPadUsage = getOrCreateJumpPadUsage(pad);
+		// Left alone long enough, the pad forgets this player and launches at full height again.
+		if (serverTime - jumpPadUsage.LastUseServerTime > instance.DecayResetSeconds)
+		{
+			jumpPadUsage.UseCount = 0;
+		}
+		float heightMultiplier = instance.GetHeightMultiplier(jumpPadUsage.UseCount);
+		// Only advance on the real pass, or a resimulated command would decay it twice.
+		if (isFirst)
+		{
+			jumpPadUsage.UseCount++;
+			jumpPadUsage.LastUseServerTime = serverTime;
+		}
+		return heightMultiplier;
 	}
 
 	private void executeRotationCommand(PlayerMoveCommand cmd)

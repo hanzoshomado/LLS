@@ -2714,7 +2714,7 @@ MonoBehaviour:
   ReindeerCameraPosition: {fileID: 4630643969539439}
   ReindeerAnimator: {fileID: 114831874417830518}
   ReindeerMovementMultiplier: 0.75
-  ReindeerRotationYPerSecond: 170
+  ReindeerRotationYPerSecond: 100
   ReindeerRotationYPerSecondWhileSprinting: 125
   ReindeerTiltSpeedMultiplier: 0.15
   ReindeerGroundOffset: 2.3
