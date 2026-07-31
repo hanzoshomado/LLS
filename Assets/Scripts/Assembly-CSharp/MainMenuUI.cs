@@ -67,7 +67,9 @@ public class MainMenuUI : GlobalEventListener
 		SteamFailureScreen.SetActive(false);
 		NoServersAvailableScreen.SetActive(false);
 		SteamTestModeConfig.SetActive(!Singleton<GameVersionManager>.Instance.IsSteamBuild());
-		TestNoSteamUsername.text = "TestPlayer-" + Guid.NewGuid().ToString().Substring(0, 5);
+		string savedTestUsername = ((Singleton<SteamManager>.Instance != null) ? Singleton<SteamManager>.Instance.GetSavedTestUsername() : string.Empty);
+		TestNoSteamUsername.text = ((savedTestUsername.Length != 0) ? savedTestUsername : ("TestPlayer-" + Guid.NewGuid().ToString().Substring(0, 5)));
+		TestNoSteamUsername.onEndEdit.AddListener(onTestUsernameEndEdit);
 		if (Singleton<GameVersionManager>.Instance.IsSteamBuild())
 		{
 			if (Singleton<SteamManager>.Instance.Initialize())
@@ -87,6 +89,18 @@ public class MainMenuUI : GlobalEventListener
 	private void OnDestroy()
 	{
 		Singleton<GlobalEventManager>.Instance.RemoveEventListener<OperationResponse>("LoadBalancerOpResponseReceived", onLoadBalancerOpResponse);
+		// Catches the case where the player types a name and starts a game without ever
+		// deselecting the field, which would otherwise never fire onEndEdit.
+		if (Singleton<SteamManager>.Instance != null)
+		{
+			Singleton<SteamManager>.Instance.SaveTestUsername();
+		}
+	}
+
+	private void onTestUsernameEndEdit(string value)
+	{
+		Singleton<SteamManager>.Instance.TestSteamUsername = value;
+		Singleton<SteamManager>.Instance.SaveTestUsername();
 	}
 
 	private void UpdateSteamUsername()

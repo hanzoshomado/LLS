@@ -15,8 +15,8 @@ public class WeaponDebuggerServer : GlobalEventListener
 
         WeaponType type;
         int ammo;
-        int hitpoints;
-        if (!WeaponDebugger.TryParseRequest(evnt.message, out type, out ammo, out hitpoints))
+        bool refillHealth;
+        if (!WeaponDebugger.TryParseRequest(evnt.message, out type, out ammo, out refillHealth))
         {
             return;
         }
@@ -34,6 +34,6 @@ public class WeaponDebuggerServer : GlobalEventListener
             return;
         }
 
-        WeaponDebugger.ApplyWeapon(character, type, ammo, hitpoints);
+        WeaponDebugger.ApplyWeapon(character, type, ammo, refillHealth);
     }
 }

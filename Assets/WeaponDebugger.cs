@@ -24,8 +24,8 @@ public class WeaponDebugger : MonoBehaviour
     };
 
     [Header("Optional: give full HP + reset stamina on equip, for repeat testing")]
+    // Refills to the controller's StartHitpoints, so there's one health number to tune.
     public bool RefillHealthOnEquip = true;
-    public int FullHitpoints = 100; // set to match StartHitpoints on SantaCharacterController if you want exact parity
 
     // Only the host may write entity state, so a client encodes its request into a LogEvent
     // aimed at the server and WeaponDebuggerServer applies it there.
@@ -59,20 +59,19 @@ public class WeaponDebugger : MonoBehaviour
 
     private void RequestWeapon(WeaponType type, int ammo)
     {
-        int hitpoints = RefillHealthOnEquip ? FullHitpoints : 0;
-
         if (_entity.IsOwner())
         {
-            ApplyWeapon(_controller, type, ammo, hitpoints);
+            ApplyWeapon(_controller, type, ammo, RefillHealthOnEquip);
             return;
         }
 
+        // Send the intent, not a health value - the host resolves it from the target character.
         LogEvent request = LogEvent.Create(GlobalTargets.OnlyServer);
         request.message = string.Concat(
             RequestPrefix,
             ((int)type).ToString(CultureInfo.InvariantCulture), " ",
             ammo.ToString(CultureInfo.InvariantCulture), " ",
-            hitpoints.ToString(CultureInfo.InvariantCulture));
+            (RefillHealthOnEquip ? "1" : "0"));
         request.Send();
         Debug.Log("WeaponDebugger: asked the host for " + type + " (ammo: " + ammo + ")");
     }
@@ -82,30 +81,32 @@ public class WeaponDebugger : MonoBehaviour
         return message != null && message.StartsWith(RequestPrefix, StringComparison.Ordinal);
     }
 
-    public static bool TryParseRequest(string message, out WeaponType type, out int ammo, out int hitpoints)
+    public static bool TryParseRequest(string message, out WeaponType type, out int ammo, out bool refillHealth)
     {
         type = WeaponType.None;
         ammo = 0;
-        hitpoints = 0;
+        refillHealth = false;
         if (!IsRequest(message))
         {
             return false;
         }
         string[] parts = message.Substring(RequestPrefix.Length).Split(' ');
         int weaponId;
+        int refillFlag;
         if (parts.Length != 3
             || !int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out weaponId)
             || !int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out ammo)
-            || !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out hitpoints))
+            || !int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out refillFlag))
         {
             return false;
         }
         type = (WeaponType)weaponId;
+        refillHealth = refillFlag != 0;
         return true;
     }
 
     // Must only be called on the host - clients cannot write entity state.
-    public static void ApplyWeapon(SantaCharacterController controller, WeaponType type, int ammo, int hitpoints)
+    public static void ApplyWeapon(SantaCharacterController controller, WeaponType type, int ammo, bool refillHealth)
     {
         if (controller == null || controller.entity == null || !controller.entity.isAttached)
         {
@@ -120,9 +121,10 @@ public class WeaponDebugger : MonoBehaviour
 
         state.EquippedWeapon = (int)type;
         state.CurrentWeaponAmmo = ammo;
-        if (hitpoints > 0)
+        if (refillHealth)
         {
-            state.HitPoints = hitpoints;
+            // Same number the character spawns with, under Health / Death.
+            state.HitPoints = controller.StartHitpoints;
         }
 
         Debug.Log("WeaponDebugger: equipped " + type + " (ammo: " + ammo + ")");

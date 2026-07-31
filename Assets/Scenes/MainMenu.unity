@@ -14723,8 +14723,8 @@ MonoBehaviour:
     m_DisabledTrigger: Disabled
   m_Interactable: 1
   m_TargetGraphic: {fileID: 622}
-  m_TextComponent: {fileID: 0}
-  m_Placeholder: {fileID: 0}
+  m_TextComponent: {fileID: 535}
+  m_Placeholder: {fileID: 670}
   m_ContentType: 0
   m_InputType: 0
   m_AsteriskChar: 42
@@ -14732,7 +14732,7 @@ MonoBehaviour:
   m_LineType: 0
   m_HideMobileInput: 0
   m_CharacterValidation: 0
-  m_CharacterLimit: 0
+  m_CharacterLimit: 32
   m_OnSubmit:
     m_PersistentCalls:
       m_Calls: []

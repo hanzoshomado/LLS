@@ -63,7 +63,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public float StartStamina;
 
 	[Header("Health / Death")]
-	public int StartHitpoints;
+	public int StartHitpoints=130;
 	public int HitpointsHealedPerKill = 25; // set to 0 to turn heal-on-kill off
 	public Transform BloodSpawnPoint;
 	public SantaCharacterRagdollSource SantaCharacterRagdollSource;

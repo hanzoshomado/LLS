@@ -2937,7 +2937,6 @@ MonoBehaviour:
     Weapon: 9
     Ammo: 1
   RefillHealthOnEquip: 1
-  FullHitpoints: 100
 --- !u!1 &1709867586078768
 GameObject:
   m_ObjectHideFlags: 0
