@@ -67,6 +67,25 @@ public class PlayerStatsManager : GlobalEventListener
 		return null;
 	}
 
+	// Leaderboard order: most wins, then most kills, then name so it never jitters between frames.
+	public List<KeyValuePair<string, PlayerStats>> GetLeaderboard()
+	{
+		List<KeyValuePair<string, PlayerStats>> list = new List<KeyValuePair<string, PlayerStats>>(_statsByUsername);
+		list.Sort(delegate(KeyValuePair<string, PlayerStats> a, KeyValuePair<string, PlayerStats> b)
+		{
+			if (a.Value.Wins != b.Value.Wins)
+			{
+				return b.Value.Wins.CompareTo(a.Value.Wins);
+			}
+			if (a.Value.Kills != b.Value.Kills)
+			{
+				return b.Value.Kills.CompareTo(a.Value.Kills);
+			}
+			return string.Compare(a.Key, b.Key, System.StringComparison.Ordinal);
+		});
+		return list;
+	}
+
 	public static void ReportKill(SantaCharacterController killer)
 	{
 		if (!BoltNetwork.isServer || _instance == null || killer == null)
