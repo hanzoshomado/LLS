@@ -2759,6 +2759,9 @@ MonoBehaviour:
   LightningBeamStopsAtHit: 1
   LightningBeamLengthScale: 1
   PlayLightningAudioForOtherPlayers: 1
+  LightningBeamThicknessScale: 1.6
+  LightningBeamDensityScale: 1.5
+  LightningBeamLightScale: 1.6
   SnowballStats:
     SpawnDistance: 2.8
     TimeBetweenAttacks: 1.5
@@ -2803,10 +2806,12 @@ MonoBehaviour:
   ShowGrenadeArcImpactMarker: 1
   GrenadeArcCollisionMask:
     serializedVersion: 2
-    m_Bits: 4294967291
+    m_Bits: 16778035
   BoxingGlovesDamage: 42
   TimeBetweenBoxingGlovesAttacks: 0.8
   BoxingGlovesMovementMultiplier: 1
+  BoxingGlovesKnockbackForce: 8
+  BoxingGlovesKnockbackLift: 12
   WinCameraRotationMultiplier: 1
 --- !u!136 &136571718729274231
 CapsuleCollider:

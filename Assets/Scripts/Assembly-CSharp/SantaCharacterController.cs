@@ -118,6 +118,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public bool LightningBeamStopsAtHit = true; // off = always drawn out to the full range
 	public float LightningBeamLengthScale = 1f; // nudge if the tip doesn't quite land on the impact
 	public bool PlayLightningAudioForOtherPlayers = true; // their beams play positionally; yours stays 2D
+	// Layered on top of the FX prefab's authored values instead of baked into it, since that
+	// prefab is shared with the rest of the particle pack. Safe to tune while playing.
+	public float LightningBeamThicknessScale = 1.6f;
+	public float LightningBeamDensityScale = 1.5f;
+	public float LightningBeamLightScale = 1.6f; // the FX's glow light, so the beam lights the world
 
 	[Header("SnowballLauncher")]
 	public RangedWeaponStats SnowballStats; // reuse SpawnDistance, TimeBetweenAttacks, MovementMultiplier, MuzzlePoint, MuzzleFlash
@@ -163,6 +168,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public int BoxingGlovesDamage;
 	public float TimeBetweenBoxingGlovesAttacks;
 	public float BoxingGlovesMovementMultiplier;
+	public float BoxingGlovesKnockbackForce = 8f; // horizontal shove, away from the puncher
+	// Has to be big enough to clear the 0.15 ground snap in one 60fps tick - i.e. above 9 - or the
+	// grounded check zeroes the whole knockback before it has moved anybody. See applyKnockback.
+	public float BoxingGlovesKnockbackLift = 12f;
 
 
 
@@ -216,11 +225,15 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private Vector3 _grenadeModelBasePosition;
 	private Quaternion _grenadeModelBaseRotation;
 	private bool _grenadeModelSearched;
+	private Vector3 _pendingKnockback;
 	private AnimatorControllerParameter[] _upperAnimatorParameters;
-	private ParticleSystem[] _lightningBeamSystems;
-	private float[] _lightningBeamAuthoredLifetimes;
+	private LightningBeamLayer[] _lightningBeamLayers;
+	private LightningBeamGlow[] _lightningBeamGlows;
 	private float _lightningBeamAuthoredReach;
 	private float _lightningBeamAppliedLength = -1f;
+	private float _lightningBeamAppliedThickness = -1f;
+	private float _lightningBeamAppliedDensity = -1f;
+	private float _lightningBeamAppliedLight = -1f;
 	private bool _lightningBeamSystemsSearched;
 	private readonly RaycastHit[] _lightningBeamHits = new RaycastHit[16];
 
@@ -664,6 +677,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			base.state.IsOnGroundType = (int)groundType;
 		}
 		HandleJumpPadCollision(moveDirection, playerMoveCommand.IsFirstExecution);
+		consumePendingKnockback();
 		vector += _velocity * frameDeltaTime;
 		if (_velocity.y < 0f && num3 > 0f)
 		{
@@ -695,6 +709,32 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		playerMoveCommand.Result.RotationY = base.transform.localEulerAngles.y;
 		playerMoveCommand.Result.Velocity = _velocity;
 		playerMoveCommand.Result.Stamina = _stamina;
+	}
+
+	// Landed in the same slot jump pads use: late enough that the grounded check has already
+	// zeroed _velocity for this tick, so the punch survives instead of being wiped the moment it
+	// arrives. Going through _velocity also means it rides home in the command result, so a
+	// predicting client rolls back onto the same arc the server simulated.
+	private void consumePendingKnockback()
+	{
+		if (_pendingKnockback == Vector3.zero)
+		{
+			return;
+		}
+		_velocity += _pendingKnockback;
+		_pendingKnockback = Vector3.zero;
+	}
+
+	// Queued rather than applied here and now: this runs from the puncher's melee trigger, and the
+	// victim's own movement simulation is the only place that can push them without the next tick
+	// undoing it.
+	private void applyKnockback(SantaCharacterController attackingCharacter, Vector3 damageDirection)
+	{
+		Vector3 horizontal = new Vector3(damageDirection.x, 0f, damageDirection.z);
+		// Straight up or down happens when the two of them are stacked; shove them off my facing
+		// instead so the punch still goes somewhere sensible.
+		horizontal = ((horizontal.sqrMagnitude > 0.0001f) ? horizontal.normalized : (-base.transform.forward));
+		_pendingKnockback = horizontal * attackingCharacter.BoxingGlovesKnockbackForce + Vector3.up * attackingCharacter.BoxingGlovesKnockbackLift;
 	}
 
 	private float GetMoveMultiplier(PlayerMoveCommand cmd)
@@ -1238,7 +1278,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		getLightningBeamAxis(out beamOrigin, out beamDirection);
 		LightningBeamInstance.transform.position = beamOrigin;
 		LightningBeamInstance.transform.rotation = Quaternion.LookRotation(beamDirection);
-		updateLightningBeamLength(beamOrigin, beamDirection);
+		updateLightningBeamPresentation(beamOrigin, beamDirection);
 	}
 
 	// The beam is drawn from the muzzle, so the same axis is what the length test has to use -
@@ -1257,13 +1297,38 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		direction = TiltRoot.forward;
 	}
 
+	// One layer of the beam FX, alongside the values it was authored with - every runtime change
+	// is expressed as a multiple of those, so repeated tweaks never compound.
+	private struct LightningBeamLayer
+	{
+		public ParticleSystem System;
+		public float Lifetime; // 0 for layers that don't travel, which don't set the beam's reach
+		public float Size;
+		public float RateOverTime;
+		public float RateOverDistance;
+	}
+
+	private struct LightningBeamGlow
+	{
+		public Light Light;
+		public float Intensity;
+		public float Range;
+	}
+
+	private void updateLightningBeamPresentation(Vector3 beamOrigin, Vector3 beamDirection)
+	{
+		cacheLightningBeamSystems();
+		applyLightningBeamStyle();
+		updateLightningBeamLength(beamOrigin, beamDirection);
+	}
+
 	// The FX prefab throws its particles much further than LightningStats.Range, so the beam
 	// visibly reaches past anything the gun can actually damage. Scaling the lifetime of the
 	// travelling particles pulls the tip back to where the shot really ends; every layer gets the
 	// same factor, so the beam keeps its authored proportions and just gets shorter.
 	private void updateLightningBeamLength(Vector3 beamOrigin, Vector3 beamDirection)
 	{
-		if (!cacheLightningBeamSystems())
+		if (_lightningBeamAuthoredReach <= 0f)
 		{
 			return;
 		}
@@ -1274,14 +1339,43 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		_lightningBeamAppliedLength = length;
 		float lifetimeScale = length / _lightningBeamAuthoredReach;
-		for (int i = 0; i < _lightningBeamSystems.Length; i++)
+		for (int i = 0; i < _lightningBeamLayers.Length; i++)
 		{
-			if (_lightningBeamAuthoredLifetimes[i] <= 0f)
+			if (_lightningBeamLayers[i].Lifetime <= 0f)
 			{
 				continue;
 			}
-			ParticleSystem.MainModule main = _lightningBeamSystems[i].main;
-			main.startLifetimeMultiplier = _lightningBeamAuthoredLifetimes[i] * lifetimeScale;
+			ParticleSystem.MainModule main = _lightningBeamLayers[i].System.main;
+			main.startLifetimeMultiplier = _lightningBeamLayers[i].Lifetime * lifetimeScale;
+		}
+	}
+
+	// Shortening the beam to the gun's range also took three quarters of it off the screen, so
+	// the remaining stretch is fattened up and lit to stay as readable as the original.
+	private void applyLightningBeamStyle()
+	{
+		if (Mathf.Approximately(_lightningBeamAppliedThickness, LightningBeamThicknessScale)
+			&& Mathf.Approximately(_lightningBeamAppliedDensity, LightningBeamDensityScale)
+			&& Mathf.Approximately(_lightningBeamAppliedLight, LightningBeamLightScale))
+		{
+			return;
+		}
+		_lightningBeamAppliedThickness = LightningBeamThicknessScale;
+		_lightningBeamAppliedDensity = LightningBeamDensityScale;
+		_lightningBeamAppliedLight = LightningBeamLightScale;
+
+		for (int i = 0; i < _lightningBeamLayers.Length; i++)
+		{
+			ParticleSystem.MainModule main = _lightningBeamLayers[i].System.main;
+			main.startSizeMultiplier = _lightningBeamLayers[i].Size * LightningBeamThicknessScale;
+			ParticleSystem.EmissionModule emission = _lightningBeamLayers[i].System.emission;
+			emission.rateOverTimeMultiplier = _lightningBeamLayers[i].RateOverTime * LightningBeamDensityScale;
+			emission.rateOverDistanceMultiplier = _lightningBeamLayers[i].RateOverDistance * LightningBeamDensityScale;
+		}
+		for (int i = 0; i < _lightningBeamGlows.Length; i++)
+		{
+			_lightningBeamGlows[i].Light.intensity = _lightningBeamGlows[i].Intensity * LightningBeamLightScale;
+			_lightningBeamGlows[i].Light.range = _lightningBeamGlows[i].Range * LightningBeamLightScale;
 		}
 	}
 
@@ -1312,30 +1406,47 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		return distance * LightningBeamLengthScale;
 	}
 
-	private bool cacheLightningBeamSystems()
+	private void cacheLightningBeamSystems()
 	{
-		if (!_lightningBeamSystemsSearched)
+		if (_lightningBeamSystemsSearched)
 		{
-			_lightningBeamSystemsSearched = true;
-			ParticleSystem[] systems = LightningBeamInstance.GetComponentsInChildren<ParticleSystem>(true);
-			_lightningBeamSystems = systems;
-			_lightningBeamAuthoredLifetimes = new float[systems.Length];
-			for (int i = 0; i < systems.Length; i++)
-			{
-				ParticleSystem.MainModule main = systems[i].main;
-				float lifetime = main.startLifetimeMultiplier;
-				float speed = main.startSpeedMultiplier;
-				// Only particles that travel define how far the beam reaches; the muzzle flash and
-				// glow sit still, and shortening their lifetime would just make them flicker.
-				if (speed <= 0f)
-				{
-					continue;
-				}
-				_lightningBeamAuthoredLifetimes[i] = lifetime;
-				_lightningBeamAuthoredReach = Mathf.Max(_lightningBeamAuthoredReach, speed * lifetime);
-			}
+			return;
 		}
-		return _lightningBeamAuthoredReach > 0f;
+		_lightningBeamSystemsSearched = true;
+
+		ParticleSystem[] systems = LightningBeamInstance.GetComponentsInChildren<ParticleSystem>(true);
+		_lightningBeamLayers = new LightningBeamLayer[systems.Length];
+		for (int i = 0; i < systems.Length; i++)
+		{
+			ParticleSystem.MainModule main = systems[i].main;
+			ParticleSystem.EmissionModule emission = systems[i].emission;
+			LightningBeamLayer layer = default(LightningBeamLayer);
+			layer.System = systems[i];
+			layer.Size = main.startSizeMultiplier;
+			layer.RateOverTime = emission.rateOverTimeMultiplier;
+			layer.RateOverDistance = emission.rateOverDistanceMultiplier;
+
+			// Only particles that travel define how far the beam reaches; the muzzle flash and
+			// glow sit still, and shortening their lifetime would just make them flicker.
+			float speed = main.startSpeedMultiplier;
+			if (speed > 0f)
+			{
+				layer.Lifetime = main.startLifetimeMultiplier;
+				_lightningBeamAuthoredReach = Mathf.Max(_lightningBeamAuthoredReach, speed * layer.Lifetime);
+			}
+			_lightningBeamLayers[i] = layer;
+		}
+
+		Light[] lights = LightningBeamInstance.GetComponentsInChildren<Light>(true);
+		_lightningBeamGlows = new LightningBeamGlow[lights.Length];
+		for (int i = 0; i < lights.Length; i++)
+		{
+			LightningBeamGlow glow = default(LightningBeamGlow);
+			glow.Light = lights[i];
+			glow.Intensity = lights[i].intensity;
+			glow.Range = lights[i].range;
+			_lightningBeamGlows[i] = glow;
+		}
 	}
 	private float getTimeBetweenCurrentWeaponAttacks()
 	{
@@ -1776,6 +1887,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			else if (weaponUsed == WeaponType.Crossbow)
 			{
 				createCrossBowStickEvent(damageDirection, false, worldImpactPosition);
+			}
+			else if (weaponUsed == WeaponType.BoxingGloves)
+			{
+				applyKnockback(attackingCharacter, damageDirection);
 			}
 		}
 	}
