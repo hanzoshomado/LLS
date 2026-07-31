@@ -169,6 +169,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private bool _wasOnGround;
 	private bool _isPlayingWinAnimation;
 	private float _lastPistolFireInputTime = -999f;
+	private float _lastLightningFireTime = -999f;
 	private bool _isFiringLightning;
 	private bool _wasFiringLightningLastFrame;
 	private float _lightningAmmoAccumulator;
@@ -300,26 +301,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		bool isInAimState = _isInAimState;
 		_isInAimState = value;
 
-		// Debug.Log("setIsAiming called | value: " + value + " | HasLightningGun: " + HasLightningGun());
-
-		if (HasLightningGun())
-		{
-			UpperAnimator.SetBool("IsFiringLightning", _isInAimState);
-			        Debug.Log("Set IsFiringLightning to " + _isInAimState);
-		}
-		else
-		{
-
-			UpperAnimator.SetBool("IsAiming", _isInAimState);
-		}
+		UpperAnimator.SetBool("IsAiming", _isInAimState);
 
 		if (!HasBeenUnderLocalControl())
 		{
 			return;
-		}
-		if (HasLightningGun())
-		{
-			return; // no camera zoom for Lightning Gun
 		}
 		if (!isInAimState && _isInAimState)
 		{
@@ -620,6 +606,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		{
 			return LightningStats.MovementMultiplier;
 		}
+		if (HasSnowballLauncher())
+		{
+			return SnowballStats.MovementMultiplier;
+		}
 		if (HasBoxingGloves())
 		{
 			return BoxingGlovesMovementMultiplier;
@@ -774,6 +764,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private void ExecuteAttackCommands(PlayerMoveCommand cmd)
 	{
 		_isFiringLightning = HasLightningGun() && cmd.Input.Attack1Held;
+		if (_isFiringLightning)
+		{
+			_lastLightningFireTime = Time.time;
+		}
 		if (base.entity.IsOwner())
 		{
 			executeLightningCommand(cmd);
@@ -788,11 +782,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		UpperAnimator.SetBool("IsFiringPistol", isFiring);
 		//Debug.Log("Frame: " + Time.frameCount + " | Attack1Held: " + cmd.Input.Attack1Held + " | IsFiringPistol: " + isFiring);
 
-		bool flag = (cmd.Input.Attack2Held && HasCrossbow()) || (cmd.Input.Attack1Held && HasLightningGun());
-		if (HasLightningGun())
-		{
-			//Debug.Log("Lightning flag check: Attack1Held=" + cmd.Input.Attack1Held + " HasLightningGun=" + HasLightningGun() + " flag=" + flag + " state.IsAiming=" + base.state.IsAiming + " IsOwner=" + base.entity.IsOwner());
-		}
+		bool flag = cmd.Input.Attack2Held && HasAimableRangedWeapon();
 		if (flag && !base.state.IsAiming)
 		{
 			if (base.entity.IsOwner())
@@ -874,7 +864,9 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void spawnSnowball(int commandServerFrame)
 	{
-		Vector3 spawnPosition = SnowballStats.MuzzlePoint.position + SnowballStats.MuzzlePoint.forward * SnowballStats.SpawnDistance;
+		// Spawn on the aim axis like the crossbow, so the shot converges on the crosshair
+		// instead of flying parallel to it from the muzzle.
+		Vector3 spawnPosition = AimCameraPosition.position + AimCameraPosition.forward * SnowballStats.SpawnDistance;
 		Vector3 throwVelocity = AimCameraPosition.forward * SnowballThrowForce;
 
 		if (SnowballStats.MuzzleFlash != null)
@@ -902,7 +894,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void spawnPistolBullet(int commandServerFrame)
 	{
-		Vector3 spawnPosition = PistolStats.MuzzlePoint.position + PistolStats.MuzzlePoint.forward * PistolStats.SpawnDistance;
+		Vector3 spawnPosition = AimCameraPosition.position + AimCameraPosition.forward * PistolStats.SpawnDistance;
 
 		if (PistolStats.MuzzleFlash != null)
 		{
@@ -962,7 +954,8 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void applyLightningDamage(PlayerMoveCommand cmd)
 	{
-		Vector3 origin = LightningStats.MuzzlePoint.position;
+		// Hit test runs down the aim axis like the crossbow; the beam still renders from the muzzle.
+		Vector3 origin = AimCameraPosition.position;
 		Vector3 direction = AimCameraPosition.forward;
 		Ray ray = new Ray(origin, direction);
 		BoltPhysicsHits boltPhysicsHits = BoltNetwork.RaycastAll(ray, cmd.ServerFrame);
@@ -1127,6 +1120,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.SnowballThrow, UpperAnimator.transform);
 			UpperAnimator.SetTrigger("FireSnowball");
 		}
+		else if (HasLightningGun())
+		{
+			// Continuous fire, so no trigger - this keeps the pose alive for remote viewers,
+			// who only learn about the shot when ExecutingAttackID replicates.
+			_lastLightningFireTime = Time.time;
+		}
 		else if (!HasAnyEquippedWeapon() || HasBoxingGloves())
 		{
 			int num = base.state.ExecutingAttackID % 2 + 1;
@@ -1231,6 +1230,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		return base.state.EquippedWeapon == (int)WeaponType.BoxingGloves;
 	}
 
+	// Weapons that aim down sights on Attack2 and fire along AimCameraPosition.
+	public bool HasAimableRangedWeapon()
+	{
+		return HasCrossbow() || HasPistol() || HasSnowballLauncher() || HasLightningGun();
+	}
+
 	public bool HasReindeer()
 	{
 		return base.state.EquippedWeapon == 4;
@@ -1245,6 +1250,15 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private void Update()
 	{
 		PollKeys(true);
+
+		// Bolt throws on any state access once an entity is detached, and these objects keep
+		// ticking for a frame or two while the session tears down on the way back to the menu.
+		if (_isDetached || base.entity == null || !base.entity.isAttached)
+		{
+			return;
+		}
+
+		UpperAnimator.SetBool("IsFiringLightning", HasLightningGun() && Time.time - _lastLightningFireTime < 0.15f);
 
 		if (HasBeenUnderLocalControl())
 		{

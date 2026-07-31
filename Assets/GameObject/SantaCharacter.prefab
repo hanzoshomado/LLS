@@ -2734,7 +2734,7 @@ MonoBehaviour:
     Delay: 0
     IsLocal: 1
   PistolStats:
-    SpawnDistance: 0
+    SpawnDistance: 2.8
     TimeBetweenAttacks: 0.3
     MovementMultiplier: 0.8
     MuzzlePoint: {fileID: 5640551071911632740}
@@ -2756,7 +2756,7 @@ MonoBehaviour:
   LightningBeamInstance: {fileID: 4804060753690095674}
   LightningAudioSource: {fileID: 7327469946619076926}
   SnowballStats:
-    SpawnDistance: 0
+    SpawnDistance: 2.8
     TimeBetweenAttacks: 1.5
     MovementMultiplier: 0.6
     MuzzlePoint: {fileID: 4120961049233010553}

@@ -47,7 +47,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   SecondsBeforeStartingGame: 5
   SecondsBeforeStartingGameAfterEnded: 5
-  MinPlayersToStartGame: 2
+  MinPlayersToStartGame: 1
 --- !u!114 &114618682377417806
 MonoBehaviour:
   m_ObjectHideFlags: 0
