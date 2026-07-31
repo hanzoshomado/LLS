@@ -48,7 +48,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 984d7df08dccf8dccae5c2a4b3bacee3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  WeaponType: 6
+  WeaponType: 3
   PressKeyPrefab: {fileID: 114703437598541787, guid: 0784777f278d66a4cbc389126e27ecf9,
     type: 3}
   PickupRange: 5

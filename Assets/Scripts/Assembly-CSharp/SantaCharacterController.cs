@@ -300,7 +300,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		bool isInAimState = _isInAimState;
 		_isInAimState = value;
 
-		 Debug.Log("setIsAiming called | value: " + value + " | HasLightningGun: " + HasLightningGun());
+		// Debug.Log("setIsAiming called | value: " + value + " | HasLightningGun: " + HasLightningGun());
 
 		if (HasLightningGun())
 		{
@@ -339,9 +339,9 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void OnEquippedWeaponChanged()
 	{
-		 Debug.Log("OnEquippedWeaponChanged fired, weapon = " + (WeaponType)base.state.EquippedWeapon);
+		// Debug.Log("OnEquippedWeaponChanged fired, weapon = " + (WeaponType)base.state.EquippedWeapon);
 		WeaponType equippedWeapon = (WeaponType)base.state.EquippedWeapon;
-		Debug.Log("Equipped weapon is now: " + equippedWeapon + " | Array length: " + WeaponModels.Length);
+		//Debug.Log("Equipped weapon is now: " + equippedWeapon + " | Array length: " + WeaponModels.Length);
 		for (int i = 0; i < WeaponModels.Length; i++)
 		{
 			bool shouldBeActive = WeaponModels[i].WeaponType == equippedWeapon;
