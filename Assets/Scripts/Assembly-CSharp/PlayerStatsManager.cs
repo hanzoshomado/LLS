@@ -24,9 +24,27 @@ public class PlayerStatsManager : GlobalEventListener
 
 	public const string StatsPrefix = "#stats ";
 
+	public const string EliminationPrefix = "#elim ";
+
+	private class PlayerIdentity
+	{
+		public BoltConnection Connection;
+
+		// The name the player actually typed, used to match them back to this slot if they
+		// disconnect and come back.
+		public string RawName;
+
+		public string DisplayName;
+
+		public bool IsConnected;
+	}
+
 	private static PlayerStatsManager _instance;
 
 	private readonly Dictionary<string, PlayerStats> _statsByUsername = new Dictionary<string, PlayerStats>();
+
+	// Host only. Rows are keyed by display name, so those names have to be unique.
+	private readonly List<PlayerIdentity> _identities = new List<PlayerIdentity>();
 
 	private string _crownHolder = string.Empty;
 
@@ -54,6 +72,102 @@ public class PlayerStatsManager : GlobalEventListener
 	public static bool IsStatsMessage(string message)
 	{
 		return message != null && message.StartsWith(StatsPrefix, System.StringComparison.Ordinal);
+	}
+
+	public static bool IsEliminationMessage(string message)
+	{
+		return message != null && message.StartsWith(EliminationPrefix, System.StringComparison.Ordinal);
+	}
+
+	// Anything this class routes over LogEvent, so the on-screen log box can skip it.
+	public static bool IsInternalMessage(string message)
+	{
+		return IsStatsMessage(message) || IsEliminationMessage(message);
+	}
+
+	// Host only. Nothing stops two players typing the same name, but stats rows and name tags
+	// have to tell them apart, so the second one onwards gets a " #n" suffix. The mapping is
+	// per connection and holds for the session - if it were recomputed each round the suffixes
+	// could swap between players and take their stats with them.
+	public static string ResolveDisplayName(BoltConnection connection, string rawName)
+	{
+		if (_instance == null)
+		{
+			return rawName;
+		}
+		return _instance.resolveDisplayName(connection, rawName);
+	}
+
+	private string resolveDisplayName(BoltConnection connection, string rawName)
+	{
+		if (string.IsNullOrEmpty(rawName))
+		{
+			rawName = "Santa";
+		}
+		for (int i = 0; i < _identities.Count; i++)
+		{
+			// Null connection is the host's own character, so only trust the match on a slot
+			// that is actually occupied - a vacated slot also holds a null connection.
+			if (_identities[i].IsConnected && _identities[i].Connection == connection)
+			{
+				return _identities[i].DisplayName;
+			}
+		}
+		// Someone rejoining under the same name takes their old row back rather than being
+		// handed a suffix and a second, empty row beside it.
+		for (int j = 0; j < _identities.Count; j++)
+		{
+			if (!_identities[j].IsConnected && _identities[j].RawName == rawName)
+			{
+				_identities[j].Connection = connection;
+				_identities[j].IsConnected = true;
+				return _identities[j].DisplayName;
+			}
+		}
+		string text = rawName;
+		int num = 2;
+		while (isDisplayNameTaken(text))
+		{
+			text = rawName + " #" + num.ToString(CultureInfo.InvariantCulture);
+			num++;
+		}
+		PlayerIdentity playerIdentity = new PlayerIdentity();
+		playerIdentity.Connection = connection;
+		playerIdentity.RawName = rawName;
+		playerIdentity.DisplayName = text;
+		playerIdentity.IsConnected = true;
+		_identities.Add(playerIdentity);
+		return text;
+	}
+
+	// Keep the row on the board, but free the slot so the same player reclaims it on return.
+	public override void Disconnected(BoltConnection connection)
+	{
+		if (!BoltNetwork.isServer)
+		{
+			return;
+		}
+		for (int i = 0; i < _identities.Count; i++)
+		{
+			if (_identities[i].IsConnected && _identities[i].Connection == connection)
+			{
+				_identities[i].IsConnected = false;
+				_identities[i].Connection = null;
+				return;
+			}
+		}
+	}
+
+	private bool isDisplayNameTaken(string displayName)
+	{
+		for (int i = 0; i < _identities.Count; i++)
+		{
+			if (_identities[i].DisplayName == displayName)
+			{
+				return true;
+			}
+		}
+		return false;
 	}
 
 	// Null when the player has no record yet, which the UI reads as zero wins and no crown.
@@ -86,13 +200,34 @@ public class PlayerStatsManager : GlobalEventListener
 		return list;
 	}
 
-	public static void ReportKill(SantaCharacterController killer)
+	public static void ReportKill(SantaCharacterController killer, SantaCharacterController victim)
 	{
 		if (!BoltNetwork.isServer || _instance == null || killer == null)
 		{
 			return;
 		}
 		_instance.serverAddKill(getUsernameOf(killer));
+		_instance.serverNotifyElimination(killer, getUsernameOf(victim));
+	}
+
+	// The popup belongs only to whoever landed the kill, so it goes to that one connection
+	// rather than being broadcast with a name for everyone else to filter on.
+	private void serverNotifyElimination(SantaCharacterController killer, string victimName)
+	{
+		if (victimName.Length == 0 || killer.entity == null || !killer.entity.isAttached)
+		{
+			return;
+		}
+		BoltConnection controller = killer.entity.controller;
+		if (controller == null)
+		{
+			// No controlling connection means the host owns this character, so it's local.
+			PlayerStatsHUD.ShowElimination(victimName);
+			return;
+		}
+		LogEvent logEvent = LogEvent.Create(controller);
+		logEvent.message = EliminationPrefix + victimName;
+		logEvent.Send();
 	}
 
 	public static void ReportWin(SantaCharacterController winner)
@@ -244,6 +379,11 @@ public class PlayerStatsManager : GlobalEventListener
 
 	public override void OnEvent(LogEvent evnt)
 	{
+		if (IsEliminationMessage(evnt.message))
+		{
+			PlayerStatsHUD.ShowElimination(evnt.message.Substring(EliminationPrefix.Length));
+			return;
+		}
 		if (!IsStatsMessage(evnt.message))
 		{
 			return;

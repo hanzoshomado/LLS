@@ -11,6 +11,21 @@ public class PlayerStatsHUD : GlobalEventListener
 {
 	private const int LeaderboardMaxRows = 8;
 
+	private const float EliminationDisplaySeconds = 3f;
+
+	// Static so a rebuild of the UI (scene load) can't swallow a popup already in flight.
+	private static string _pendingEliminationName;
+
+	private static float _eliminationHideTime;
+
+	private static string _localDisplayName = string.Empty;
+
+	private RectTransform _eliminationRoot;
+
+	private Text _eliminationLabel;
+
+	private string _shownEliminationName;
+
 	private RectTransform _winCounterRoot;
 
 	private Text _winCounterLabel;
@@ -42,6 +57,37 @@ public class PlayerStatsHUD : GlobalEventListener
 		}
 		updateWinCounter();
 		updateLeaderboard();
+		updateElimination();
+	}
+
+	// Called on the machine of whoever got the kill - the host resolves that, so this is
+	// already "you" by the time it runs.
+	public static void ShowElimination(string victimName)
+	{
+		if (string.IsNullOrEmpty(victimName))
+		{
+			return;
+		}
+		_pendingEliminationName = victimName;
+		_eliminationHideTime = Time.time + EliminationDisplaySeconds;
+	}
+
+	private void updateElimination()
+	{
+		bool flag = _pendingEliminationName != null && Time.time < _eliminationHideTime;
+		if (flag && _shownEliminationName != _pendingEliminationName)
+		{
+			_shownEliminationName = _pendingEliminationName;
+			_eliminationLabel.text = "You eliminated (" + _pendingEliminationName + ")";
+		}
+		if (_eliminationRoot.gameObject.activeSelf != flag)
+		{
+			_eliminationRoot.gameObject.SetActive(flag);
+		}
+		if (!flag)
+		{
+			_shownEliminationName = null;
+		}
 	}
 
 	private void updateWinCounter()
@@ -65,11 +111,14 @@ public class PlayerStatsHUD : GlobalEventListener
 
 	private void updateLeaderboard()
 	{
-		bool flag = false;
+		bool flag2 = false;
 		if (GameModeManager.Instance != null && GameModeManager.Instance.IsGameModeInfoLoaded())
 		{
-			flag = GameModeManager.Instance.HasRoundEnded();
+			flag2 = GameModeManager.Instance.HasRoundEnded();
 		}
+		// Tab can only ever add the board on top of the between-rounds one; releasing it can
+		// never hide the automatic display, and holding it there changes nothing.
+		bool flag = flag2 || isLeaderboardKeyHeld();
 		if (_leaderboardRoot.gameObject.activeSelf != flag)
 		{
 			_leaderboardRoot.gameObject.SetActive(flag);
@@ -105,13 +154,41 @@ public class PlayerStatsHUD : GlobalEventListener
 		_leaderboardScores.text = stringBuilder2.ToString();
 	}
 
+	// The host may have suffixed our typed name to keep it unique, and stats are keyed by that
+	// resolved name - so read it off our own character rather than trusting what we typed.
+	// Cached because the character is gone while we're dead or between rounds.
 	private static string getLocalUsername()
 	{
-		if (Singleton<SteamManager>.Instance != null)
+		if (CharacterTracker.Instance != null)
+		{
+			SantaCharacterController santaWithControl = CharacterTracker.Instance.GetSantaWithControl();
+			if (santaWithControl != null && santaWithControl.entity != null && santaWithControl.entity.isAttached)
+			{
+				string steamUsername = santaWithControl.state.SteamUsername;
+				if (!string.IsNullOrEmpty(steamUsername))
+				{
+					_localDisplayName = steamUsername;
+				}
+			}
+		}
+		if (_localDisplayName.Length == 0 && Singleton<SteamManager>.Instance != null)
 		{
 			return Singleton<SteamManager>.Instance.GetSteamUsername();
 		}
-		return string.Empty;
+		return _localDisplayName;
+	}
+
+	private static bool isLeaderboardKeyHeld()
+	{
+		if (Singleton<FocusManager>.Instance != null && !Singleton<FocusManager>.Instance.HasFocus())
+		{
+			return false;
+		}
+		if (Singleton<UIRoot>.Instance != null && Singleton<UIRoot>.Instance.ShouldUnlockMouse())
+		{
+			return false;
+		}
+		return Input.GetKey(KeyCode.Tab);
 	}
 
 	private void buildUI()
@@ -122,29 +199,41 @@ public class PlayerStatsHUD : GlobalEventListener
 			_font = findFont();
 		}
 
+		// Sizes are tuned for the 800x600 reference resolution this canvas scales to, where the
+		// game's own labels sit at 10-16 and its headers at 24-42.
+
 		// Top-right win counter.
 		_winCounterRoot = createRect("WinCounter", transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f));
-		_winCounterRoot.anchoredPosition = new Vector2(-18f, -14f);
-		_winCounterRoot.sizeDelta = new Vector2(220f, 40f);
-		_winCounterLabel = createText(_winCounterRoot, 26, TextAnchor.UpperRight);
+		_winCounterRoot.anchoredPosition = new Vector2(-12f, -10f);
+		_winCounterRoot.sizeDelta = new Vector2(140f, 24f);
+		_winCounterLabel = createText(_winCounterRoot, 18, TextAnchor.UpperRight);
 		_lastShownWins = -1;
+
+		// Elimination popup, bottom centre. The health bar is anchored bottom-centre at y 27.7
+		// with a height of 20, so its top edge is ~38; sit clear of that.
+		_eliminationRoot = createRect("EliminationPopup", transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f));
+		_eliminationRoot.anchoredPosition = new Vector2(0f, 52f);
+		_eliminationRoot.sizeDelta = new Vector2(500f, 30f);
+		_eliminationLabel = createText(_eliminationRoot, 24, TextAnchor.LowerCenter);
+		_eliminationLabel.color = new Color(0.91f, 0.16f, 0.16f, 1f);
+		_eliminationRoot.gameObject.SetActive(false);
 
 		// Between-round leaderboard, centred.
 		_leaderboardRoot = createRect("Leaderboard", transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
-		_leaderboardRoot.anchoredPosition = new Vector2(0f, -40f);
-		_leaderboardRoot.sizeDelta = new Vector2(460f, 300f);
+		_leaderboardRoot.anchoredPosition = new Vector2(0f, -30f);
+		_leaderboardRoot.sizeDelta = new Vector2(330f, 190f);
 		Image image = _leaderboardRoot.gameObject.AddComponent<Image>();
 		image.color = new Color(0f, 0f, 0f, 0.65f);
 
 		RectTransform rectTransform = createRect("Names", _leaderboardRoot, new Vector2(0f, 0f), new Vector2(0.62f, 1f), new Vector2(0f, 1f));
-		rectTransform.offsetMin = new Vector2(22f, 16f);
-		rectTransform.offsetMax = new Vector2(0f, -16f);
-		_leaderboardNames = createText(rectTransform, 22, TextAnchor.UpperLeft);
+		rectTransform.offsetMin = new Vector2(14f, 10f);
+		rectTransform.offsetMax = new Vector2(0f, -10f);
+		_leaderboardNames = createText(rectTransform, 14, TextAnchor.UpperLeft);
 
 		RectTransform rectTransform2 = createRect("Scores", _leaderboardRoot, new Vector2(0.62f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f));
-		rectTransform2.offsetMin = new Vector2(0f, 16f);
-		rectTransform2.offsetMax = new Vector2(-22f, -16f);
-		_leaderboardScores = createText(rectTransform2, 22, TextAnchor.UpperLeft);
+		rectTransform2.offsetMin = new Vector2(0f, 10f);
+		rectTransform2.offsetMax = new Vector2(-14f, -10f);
+		_leaderboardScores = createText(rectTransform2, 14, TextAnchor.UpperLeft);
 
 		_leaderboardRoot.SetAsLastSibling();
 		_leaderboardRoot.gameObject.SetActive(false);

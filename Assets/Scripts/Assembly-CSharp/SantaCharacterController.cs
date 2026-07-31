@@ -1879,7 +1879,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 				if (attackingCharacter != this)
 				{
 					attackingCharacter.gainKillHeal();
-					PlayerStatsManager.ReportKill(attackingCharacter);
+					PlayerStatsManager.ReportKill(attackingCharacter, this);
 				}
 				dropCurrentWeapon();
 				destroyThisAndCreateRagdoll(damageDirection);
@@ -2011,7 +2011,9 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	{
 		if (base.entity.IsOwner())
 		{
-			base.state.SteamUsername = clientSetUsernameEvent.SteamUsername;
+			// Two players can pick the same name, so the host hands out a unique display name
+			// and everything downstream (name tags, stats rows) keys off that instead.
+			base.state.SteamUsername = PlayerStatsManager.ResolveDisplayName(base.entity.controller, clientSetUsernameEvent.SteamUsername);
 		}
 	}
 
