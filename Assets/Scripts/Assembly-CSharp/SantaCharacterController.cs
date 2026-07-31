@@ -2,9 +2,9 @@ using System;
 using System.Collections;
 using Bolt;
 using UnityEngine;
-using System.Reflection; 
+using System.Reflection;
 
- 
+
 [Serializable]
 public class RangedWeaponStats
 {
@@ -113,6 +113,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public RangedWeaponStats LightningStats;
 	public GameObject LightningBeamInstance;
 	public AudioSource LightningAudioSource; // assign in Inspector, put it on/near the muzzle
+	// The beam FX is authored to fly far further than the gun can hit, so its particles get their
+	// lifetimes scaled down to put the tip at the end of the shot.
+	public bool LightningBeamStopsAtHit = true; // off = always drawn out to the full range
+	public float LightningBeamLengthScale = 1f; // nudge if the tip doesn't quite land on the impact
+	public bool PlayLightningAudioForOtherPlayers = true; // their beams play positionally; yours stays 2D
 
 	[Header("SnowballLauncher")]
 	public RangedWeaponStats SnowballStats; // reuse SpawnDistance, TimeBetweenAttacks, MovementMultiplier, MuzzlePoint, MuzzleFlash
@@ -126,9 +131,22 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public float GrenadeExplosionRadius;
 	public float GrenadeThrowForce;
 
+	[Header("Grenade Throw")]
+	// Hold fire to wind up, release to throw. The wind-up pose is a placeholder offset applied to
+	// the grenade model; the animator hooks below are for when real clips exist.
+	public Vector3 GrenadeWindupLocalOffset = new Vector3(0.02f, 0.05f, -0.09f);
+	public Vector3 GrenadeWindupLocalEuler = new Vector3(-25f, 0f, 0f);
+	public float GrenadeWindupTime = 0.15f;
+	public float GrenadeWindupFOVBoost = 6f; // positive pulls the view back; negative zooms in
+	public float GrenadeWindupMovementMultiplier = 0.6f; // matches the other aimed weapons
+	// Optional UpperAnimator state to Play() on release, e.g. an authored throw clip. The
+	// "IsPreparingGrenade" bool and "ThrowGrenade" trigger are driven too, but only if the
+	// controller actually defines them.
+	public string GrenadeThrowAnimatorState = "";
+
 	[Header("Grenade Trajectory Preview")]
 	public bool ShowGrenadeArc = true;
-	public bool ShowGrenadeArcOnlyWhileAiming; // when on, the arc only appears while holding right mouse
+	public bool ShowGrenadeArcOnlyWhileCooking = true; // arc appears once you start winding up
 	// Must match GravityMultiplier on the grenade projectile prefab's SnowballProjectile, or the
 	// preview will predict a different flight than the thrown grenade actually takes.
 	public float GrenadeArcGravityMultiplier = 2f;
@@ -191,6 +209,30 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private float _lightningAmmoAccumulator;
 	private float _lightningDamageAccumulator;
 	private GrenadeArcPreview _grenadeArcPreview;
+	private bool _wasCookingGrenade;
+	private bool _aimStateIsGrenadeWindup;
+	private float _grenadeWindupBlend;
+	private Transform _grenadeModel;
+	private Vector3 _grenadeModelBasePosition;
+	private Quaternion _grenadeModelBaseRotation;
+	private bool _grenadeModelSearched;
+	private AnimatorControllerParameter[] _upperAnimatorParameters;
+	private ParticleSystem[] _lightningBeamSystems;
+	private float[] _lightningBeamAuthoredLifetimes;
+	private float _lightningBeamAuthoredReach;
+	private float _lightningBeamAppliedLength = -1f;
+	private bool _lightningBeamSystemsSearched;
+	private readonly RaycastHit[] _lightningBeamHits = new RaycastHit[16];
+
+	// Rides along on the replicated AttackDirection field. By the time ExecutingAttackID reaches
+	// remote clients the weapon has already been cleared to None everywhere, so the equipped
+	// weapon can't tell them the attack was a grenade throw. Deliberately outside CharacterDirection.
+	private const int GrenadeThrowAttackDirection = 100;
+
+	// How long a copy of a character that isn't simulating input keeps showing the lightning as
+	// firing after the last attack tick reached it. Long enough to bridge the gap between
+	// snapshots, short enough that the beam stops when the shooter lets go.
+	private const float LightningRemoteFiringHoldTime = 0.15f;
 
 	public GroundType GetGroundType()
 	{
@@ -318,7 +360,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		bool isInAimState = _isInAimState;
 		_isInAimState = value;
 
-		UpperAnimator.SetBool("IsAiming", _isInAimState);
+		// The grenade wind-up shares the replicated IsAiming flag but is a different pose, so it
+		// drives its own animator parameter and never claims the aim-down-sights one.
+		bool isGrenadeWindup = _isInAimState && HasGrenade();
+		UpperAnimator.SetBool("IsAiming", _isInAimState && !isGrenadeWindup);
+		setUpperAnimatorBool("IsPreparingGrenade", isGrenadeWindup);
 
 		if (!HasBeenUnderLocalControl())
 		{
@@ -326,6 +372,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		if (!isInAimState && _isInAimState)
 		{
+			// Winding up a throw must not pull the camera into the ADS position.
+			_aimStateIsGrenadeWindup = isGrenadeWindup;
+			if (_aimStateIsGrenadeWindup)
+			{
+				return;
+			}
 			PlayerCamera.GetComponent<ITweenMover>().RotateTo(Vector3.zero, AimInHash);
 			PlayerCamera.GetComponent<ITweenMover>().MoveTo(AimCameraPosition.localPosition, AimInHash, delegate
 			{
@@ -334,9 +386,52 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		else if (isInAimState && !_isInAimState)
 		{
+			// Checked against how the aim state was entered, because the grenade is already gone
+			// from EquippedWeapon by the time the throw ends it.
+			bool wasGrenadeWindup = _aimStateIsGrenadeWindup;
+			_aimStateIsGrenadeWindup = false;
+			if (wasGrenadeWindup)
+			{
+				return;
+			}
 			Head.SetActive(true);
 			PlayerCamera.GetComponent<ITweenMover>().MoveTo(_cameraMeleePosition, AimOutHash);
 			PlayerCamera.GetComponent<ITweenMover>().RotateTo(_cameraMeleeLocalEulerAngles, AimOutHash);
+		}
+	}
+
+	// Setting a parameter the controller doesn't define logs a warning on every call, and the
+	// grenade parameters only exist once someone authors clips for them in the Animator window.
+	private bool upperAnimatorHasParameter(string parameterName)
+	{
+		if (_upperAnimatorParameters == null)
+		{
+			// Animator.parameters allocates a fresh array per call, so it gets cached once.
+			_upperAnimatorParameters = UpperAnimator.parameters;
+		}
+		for (int i = 0; i < _upperAnimatorParameters.Length; i++)
+		{
+			if (_upperAnimatorParameters[i].name == parameterName)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void setUpperAnimatorBool(string parameterName, bool value)
+	{
+		if (upperAnimatorHasParameter(parameterName))
+		{
+			UpperAnimator.SetBool(parameterName, value);
+		}
+	}
+
+	private void setUpperAnimatorTrigger(string parameterName)
+	{
+		if (upperAnimatorHasParameter(parameterName))
+		{
+			UpperAnimator.SetTrigger(parameterName);
 		}
 	}
 
@@ -359,6 +454,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		UpperAnimator.SetBool("IsUnarmed", equippedWeapon == WeaponType.None);
 		LowerAnimator.SetBool("HasReindeer", equippedWeapon == WeaponType.Reindeer);
 		UpperAnimator.SetBool("HasSnowballLauncher", equippedWeapon == WeaponType.SnowballLauncher);
+		setUpperAnimatorBool("HasGrenade", equippedWeapon == WeaponType.Grenade);
 		if (HasBeenUnderLocalControl())
 		{
 			if (HasReindeer())
@@ -496,7 +592,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		_stamina += StaminaRegenPerSecond * BoltNetwork.frameDeltaTime;
 		_stamina = Mathf.Clamp(_stamina, 0f, StartStamina);
-		float moveMultiplier = GetMoveMultiplier();
+		float moveMultiplier = GetMoveMultiplier(playerMoveCommand);
 		Vector3 vector = BoltNetwork.frameDeltaTime * MoveSpeed * moveMultiplier * num2 * moveDirection;
 		bool flag6 = false;
 		float num3 = 0f;
@@ -601,7 +697,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		playerMoveCommand.Result.Stamina = _stamina;
 	}
 
-	private float GetMoveMultiplier()
+	private float GetMoveMultiplier(PlayerMoveCommand cmd)
 	{
 		if (HasSword())
 		{
@@ -630,6 +726,13 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		if (HasBoxingGloves())
 		{
 			return BoxingGlovesMovementMultiplier;
+		}
+		if (HasGrenade())
+		{
+			// Keyed off the command input rather than the wind-up flag, because this also runs
+			// while a client re-simulates old commands and the input is the only version of it
+			// that rewinds with them.
+			return (cmd.Input.Attack1Held ? GrenadeWindupMovementMultiplier : GrenadeStats.MovementMultiplier);
 		}
 
 		return 1f;
@@ -799,7 +902,18 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		UpperAnimator.SetBool("IsFiringPistol", isFiring);
 		//Debug.Log("Frame: " + Time.frameCount + " | Attack1Held: " + cmd.Input.Attack1Held + " | IsFiringPistol: " + isFiring);
 
-		bool flag = cmd.Input.Attack2Held && HasAimableRangedWeapon();
+		// The grenade has no aim-down-sights: holding fire winds the throw up and releasing it
+		// throws. PlayerMoveCommand only carries the held state, so the release is the edge
+		// between two commands - tracked on first execution so a re-simulated command can't
+		// report a second one.
+		bool isCookingGrenade = cmd.Input.Attack1Held && HasGrenade();
+		bool releasedGrenade = _wasCookingGrenade && HasGrenade() && !cmd.Input.Attack1Held;
+		if (cmd.IsFirstExecution)
+		{
+			_wasCookingGrenade = isCookingGrenade;
+		}
+
+		bool flag = (cmd.Input.Attack2Held && HasAimableRangedWeapon()) || isCookingGrenade;
 		if (flag && !base.state.IsAiming)
 		{
 			if (base.entity.IsOwner())
@@ -814,6 +928,16 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		if (HasBeenUnderLocalControl() && cmd.IsFirstExecution)
 		{
 			setIsAiming(flag);
+		}
+		if (HasGrenade())
+		{
+			// Throws on release, so it never runs the press-to-attack path below - that would
+			// fire an attack every frame the grenade is held.
+			if (releasedGrenade)
+			{
+				throwGrenade(cmd);
+			}
+			return;
 		}
 		if (!cmd.Input.Attack1Held || !(BoltNetwork.serverTime - base.state.AttackStartTime > getTimeBetweenCurrentWeaponAttacks()))
 		{
@@ -862,14 +986,22 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 					base.state.EquippedWeapon = 0;
 				}
 			}
-			if (HasGrenade())
-			{
-				spawnGrenade(cmd.ServerFrame);
-				base.state.EquippedWeapon = 0; // instantly gone after one throw
-			}
-
 		}
 		tryRenderAttackID(attackID, attackDirection);
+	}
+
+	private void throwGrenade(PlayerMoveCommand cmd)
+	{
+		int attackID = base.state.ExecutingAttackID + 1;
+		if (base.entity.IsOwner())
+		{
+			base.state.AttackStartTime = BoltNetwork.serverTime;
+			base.state.AttackDirection = GrenadeThrowAttackDirection;
+			base.state.ExecutingAttackID++;
+			spawnGrenade(cmd.ServerFrame);
+			base.state.EquippedWeapon = 0; // instantly gone after one throw
+		}
+		tryRenderAttackID(attackID, (CharacterDirection)GrenadeThrowAttackDirection);
 	}
 
 	private void spawnCrossbowBolt(int commandServerFrame)
@@ -1030,6 +1162,19 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 	}
 
+	// Proxies never run ExecuteCommand, so _isFiringLightning is only ever set on the copies that
+	// simulate input. What every copy does get is ExecutingAttackID ticking up while the trigger
+	// is held (TimeBetweenAttacks is 0 for this weapon), which tryRenderAttackID turns into
+	// _lastLightningFireTime - the same signal the firing animation already runs on.
+	private bool isFiringLightningForDisplay()
+	{
+		if (HasBeenUnderLocalControl())
+		{
+			return _isFiringLightning;
+		}
+		return HasLightningGun() && Time.time - _lastLightningFireTime < LightningRemoteFiringHoldTime;
+	}
+
 	private void UpdateLightningBeam(bool isFiring)
 	{
 		if (!isFiring)
@@ -1043,8 +1188,6 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 				LightningAudioSource.Stop();
 			}
 			_wasFiringLightningLastFrame = false;
-			_lightningAmmoAccumulator = 0f;
-			_lightningDamageAccumulator = 0f;
 			return;
 		}
 
@@ -1072,21 +1215,127 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			{
 				ps.Play();
 			}
-			if (LightningAudioSource != null && LightningStats.MuzzlePoint != null)
+			if (LightningAudioSource != null && LightningStats.MuzzlePoint != null && (HasBeenUnderLocalControl() || PlayLightningAudioForOtherPlayers))
 			{
 				AudioClipDefinition clipDef = Singleton<AudioLibrary>.Instance.LightningFire[0]; // or randomize like PlayClipAtTransform likely does
 				LightningAudioSource.clip = clipDef.Clip; // adjust field name based on AudioClipDefinition's actual structure
 				LightningAudioSource.loop = true;
+				if (!HasBeenUnderLocalControl())
+				{
+					// The source on the prefab is 2D, which is what you want for your own gun but
+					// would put every other player's beam at full volume in your ears.
+					LightningAudioSource.spatialBlend = 1f;
+				}
 				LightningAudioSource.Play();
 			}
 		}
 		_wasFiringLightningLastFrame = true;
 
 		// Hit detection and ammo drain are authoritative and live in executeLightningCommand;
-		// from here down this method is purely the local beam presentation.
-		// just follow the muzzle, no stretching/scaling
-		LightningBeamInstance.transform.position = LightningStats.MuzzlePoint.position;
-		LightningBeamInstance.transform.rotation = Quaternion.LookRotation(AimCameraPosition.forward);
+		// from here down this method is purely beam presentation.
+		Vector3 beamOrigin;
+		Vector3 beamDirection;
+		getLightningBeamAxis(out beamOrigin, out beamDirection);
+		LightningBeamInstance.transform.position = beamOrigin;
+		LightningBeamInstance.transform.rotation = Quaternion.LookRotation(beamDirection);
+		updateLightningBeamLength(beamOrigin, beamDirection);
+	}
+
+	// The beam is drawn from the muzzle, so the same axis is what the length test has to use -
+	// anything else and the beam stops somewhere other than where it visibly meets geometry.
+	private void getLightningBeamAxis(out Vector3 origin, out Vector3 direction)
+	{
+		origin = LightningStats.MuzzlePoint.position;
+		if (HasBeenUnderLocalControl())
+		{
+			direction = AimCameraPosition.forward;
+			return;
+		}
+		// AimCameraPosition hangs off CameraRoot, and only ExecuteCommand ever turns that - which
+		// proxies don't run, so it would be stuck at its authored pitch. TiltRoot is given the
+		// same rotation and is replicated, so it is the aim axis that survives the trip.
+		direction = TiltRoot.forward;
+	}
+
+	// The FX prefab throws its particles much further than LightningStats.Range, so the beam
+	// visibly reaches past anything the gun can actually damage. Scaling the lifetime of the
+	// travelling particles pulls the tip back to where the shot really ends; every layer gets the
+	// same factor, so the beam keeps its authored proportions and just gets shorter.
+	private void updateLightningBeamLength(Vector3 beamOrigin, Vector3 beamDirection)
+	{
+		if (!cacheLightningBeamSystems())
+		{
+			return;
+		}
+		float length = getLightningBeamLength(beamOrigin, beamDirection);
+		if (Mathf.Approximately(length, _lightningBeamAppliedLength))
+		{
+			return;
+		}
+		_lightningBeamAppliedLength = length;
+		float lifetimeScale = length / _lightningBeamAuthoredReach;
+		for (int i = 0; i < _lightningBeamSystems.Length; i++)
+		{
+			if (_lightningBeamAuthoredLifetimes[i] <= 0f)
+			{
+				continue;
+			}
+			ParticleSystem.MainModule main = _lightningBeamSystems[i].main;
+			main.startLifetimeMultiplier = _lightningBeamAuthoredLifetimes[i] * lifetimeScale;
+		}
+	}
+
+	private float getLightningBeamLength(Vector3 beamOrigin, Vector3 beamDirection)
+	{
+		float distance = LightningStats.Range;
+		if (LightningBeamStopsAtHit)
+		{
+			// Presentation only - the authoritative, lag-compensated hit test is in
+			// applyLightningDamage. This just needs to know where the beam visually stops.
+			int hitCount = Physics.RaycastNonAlloc(beamOrigin, beamDirection, _lightningBeamHits, distance, ~(1 << 2), QueryTriggerInteraction.Ignore);
+			for (int i = 0; i < hitCount; i++)
+			{
+				RaycastHit hit = _lightningBeamHits[i];
+				if (hit.collider == null || hit.distance >= distance)
+				{
+					continue;
+				}
+				// The ray starts at the muzzle, inside the shooter, so their own colliders would
+				// otherwise pin the beam to zero length.
+				if (hit.collider.GetComponentInParent<SantaCharacterController>() == this)
+				{
+					continue;
+				}
+				distance = hit.distance;
+			}
+		}
+		return distance * LightningBeamLengthScale;
+	}
+
+	private bool cacheLightningBeamSystems()
+	{
+		if (!_lightningBeamSystemsSearched)
+		{
+			_lightningBeamSystemsSearched = true;
+			ParticleSystem[] systems = LightningBeamInstance.GetComponentsInChildren<ParticleSystem>(true);
+			_lightningBeamSystems = systems;
+			_lightningBeamAuthoredLifetimes = new float[systems.Length];
+			for (int i = 0; i < systems.Length; i++)
+			{
+				ParticleSystem.MainModule main = systems[i].main;
+				float lifetime = main.startLifetimeMultiplier;
+				float speed = main.startSpeedMultiplier;
+				// Only particles that travel define how far the beam reaches; the muzzle flash and
+				// glow sit still, and shortening their lifetime would just make them flicker.
+				if (speed <= 0f)
+				{
+					continue;
+				}
+				_lightningBeamAuthoredLifetimes[i] = lifetime;
+				_lightningBeamAuthoredReach = Mathf.Max(_lightningBeamAuthoredReach, speed * lifetime);
+			}
+		}
+		return _lightningBeamAuthoredReach > 0f;
 	}
 	private float getTimeBetweenCurrentWeaponAttacks()
 	{
@@ -1130,6 +1379,18 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			return;
 		}
 		_lastAttackIDRendered = attackID;
+		if ((int)attackDirection == GrenadeThrowAttackDirection)
+		{
+			// Checked before the weapon branches: EquippedWeapon is already None by now, on every
+			// client, so this is the only thing that still identifies the throw.
+			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.SnowballThrow, UpperAnimator.transform);
+			setUpperAnimatorTrigger("ThrowGrenade");
+			if (!string.IsNullOrEmpty(GrenadeThrowAnimatorState))
+			{
+				UpperAnimator.Play(GrenadeThrowAnimatorState, 0, 0f);
+			}
+			return;
+		}
 		if (HasCrossbow())
 		{
 			UpperAnimator.SetTrigger("FireCrossBow");
@@ -1285,7 +1546,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			return;
 		}
 
-		UpperAnimator.SetBool("IsFiringLightning", HasLightningGun() && Time.time - _lastLightningFireTime < 0.15f);
+		UpperAnimator.SetBool("IsFiringLightning", HasLightningGun() && Time.time - _lastLightningFireTime < LightningRemoteFiringHoldTime);
+
+		// These run for every copy of the character, not just the local one, so other players can
+		// see the wind-up and the beam too.
+		updateGrenadeWindupPose();
+		UpdateLightningBeam(isFiringLightningForDisplay());
 
 		if (HasBeenUnderLocalControl())
 		{
@@ -1293,16 +1559,84 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			// while standing still. The speed boost and stamina drain both require movement
 			// too (flag2 && flag5 in ExecuteCommand); this keeps the FOV consistent with them.
 			bool isSprintingAndMoving = base.state.IsSprinting && base.state.IsMoving;
-			float targetFOV = (isSprintingAndMoving ? (_baseFOV + SprintFOVBoost) : _baseFOV);
+			float targetFOV = _baseFOV;
+			if (isSprintingAndMoving)
+			{
+				targetFOV += SprintFOVBoost;
+			}
+			if (IsPreparingGrenadeThrow())
+			{
+				targetFOV += GrenadeWindupFOVBoost;
+			}
 			PlayerCamera.fieldOfView = Mathf.Lerp(PlayerCamera.fieldOfView, targetFOV, Time.deltaTime * FOVLerpSpeed);
 
-			UpdateLightningBeam(_isFiringLightning);
 			updateGrenadeArc();
 		}
 		else
 		{
 			hideGrenadeArc();
 		}
+	}
+
+	// True wherever the wind-up should be showing. The local controller sets _isInAimState itself
+	// rather than waiting for IsAiming to round-trip through the owner; proxies get it from the
+	// replicated flag via OnIsAimingChanged.
+	public bool IsPreparingGrenadeThrow()
+	{
+		return HasGrenade() && _isInAimState;
+	}
+
+	// Placeholder for a real throw animation: eases the grenade model back into a cocked pose
+	// while the throw is being held, and back to its authored pose when it isn't.
+	private void updateGrenadeWindupPose()
+	{
+		float target = (IsPreparingGrenadeThrow() ? 1f : 0f);
+		if (target == 0f && _grenadeWindupBlend == 0f)
+		{
+			// Resting pose - leave the transform alone rather than rewriting it every frame.
+			return;
+		}
+		Transform grenadeModel = getGrenadeModel();
+		if (grenadeModel == null)
+		{
+			return;
+		}
+		if (!HasGrenade())
+		{
+			// Thrown or swapped away: the model is hidden now, so snap rather than ease - the
+			// next grenade has to start from the authored pose.
+			_grenadeWindupBlend = 0f;
+		}
+		else if (GrenadeWindupTime > 0f)
+		{
+			_grenadeWindupBlend = Mathf.MoveTowards(_grenadeWindupBlend, target, Time.deltaTime / GrenadeWindupTime);
+		}
+		else
+		{
+			_grenadeWindupBlend = target;
+		}
+		grenadeModel.localPosition = _grenadeModelBasePosition + GrenadeWindupLocalOffset * _grenadeWindupBlend;
+		grenadeModel.localRotation = _grenadeModelBaseRotation * Quaternion.Euler(GrenadeWindupLocalEuler * _grenadeWindupBlend);
+	}
+
+	private Transform getGrenadeModel()
+	{
+		if (!_grenadeModelSearched)
+		{
+			_grenadeModelSearched = true;
+			for (int i = 0; i < WeaponModels.Length; i++)
+			{
+				if (WeaponModels[i] != null && WeaponModels[i].WeaponType == WeaponType.Grenade)
+				{
+					_grenadeModel = WeaponModels[i].transform;
+					// Captured before anything offsets it, so this is the authored pose.
+					_grenadeModelBasePosition = _grenadeModel.localPosition;
+					_grenadeModelBaseRotation = _grenadeModel.localRotation;
+					break;
+				}
+			}
+		}
+		return _grenadeModel;
 	}
 
 	// Only the throwing player sees their own arc; remote copies of this character never draw one.
@@ -1313,7 +1647,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			hideGrenadeArc();
 			return;
 		}
-		if (ShowGrenadeArcOnlyWhileAiming && !_attack2Held)
+		if (ShowGrenadeArcOnlyWhileCooking && !IsPreparingGrenadeThrow())
 		{
 			hideGrenadeArc();
 			return;

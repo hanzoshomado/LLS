@@ -2750,12 +2750,15 @@ MonoBehaviour:
     MovementMultiplier: 0.6
     MuzzlePoint: {fileID: 5342124071601979049}
     MuzzleFlash: {fileID: 6037574207913801442}
-    Range: 20
+    Range: 38
     Beam: {fileID: 0}
     AmmoDrainPerSecond: 20
     DamagePerSecond: 75
   LightningBeamInstance: {fileID: 4804060753690095674}
   LightningAudioSource: {fileID: 7327469946619076926}
+  LightningBeamStopsAtHit: 1
+  LightningBeamLengthScale: 1
+  PlayLightningAudioForOtherPlayers: 1
   SnowballStats:
     SpawnDistance: 2.8
     TimeBetweenAttacks: 1.5
@@ -2782,6 +2785,25 @@ MonoBehaviour:
   GrenadeDamage: 50
   GrenadeExplosionRadius: 5
   GrenadeThrowForce: 70
+  GrenadeWindupLocalOffset: {x: 0.02, y: 0.05, z: -0.09}
+  GrenadeWindupLocalEuler: {x: -25, y: 0, z: 0}
+  GrenadeWindupTime: 0.15
+  GrenadeWindupFOVBoost: 6
+  GrenadeWindupMovementMultiplier: 0.6
+  GrenadeThrowAnimatorState: 
+  ShowGrenadeArc: 1
+  ShowGrenadeArcOnlyWhileCooking: 1
+  GrenadeArcGravityMultiplier: 2
+  GrenadeArcProjectileRadius: 0.2
+  GrenadeArcMaxTime: 3
+  GrenadeArcPointInterval: 0.05
+  GrenadeArcWidth: 0.06
+  GrenadeArcColor: {r: 1, g: 0.45, b: 0.15, a: 0.9}
+  GrenadeArcMaterial: {fileID: 0}
+  ShowGrenadeArcImpactMarker: 1
+  GrenadeArcCollisionMask:
+    serializedVersion: 2
+    m_Bits: 4294967291
   BoxingGlovesDamage: 42
   TimeBetweenBoxingGlovesAttacks: 0.8
   BoxingGlovesMovementMultiplier: 1
