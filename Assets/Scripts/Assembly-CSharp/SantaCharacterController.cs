@@ -1361,6 +1361,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 				if (attackingCharacter != this)
 				{
 					attackingCharacter.gainKillHeal();
+					PlayerStatsManager.ReportKill(attackingCharacter);
 				}
 				dropCurrentWeapon();
 				destroyThisAndCreateRagdoll(damageDirection);

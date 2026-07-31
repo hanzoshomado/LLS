@@ -14,7 +14,7 @@ public class NetworkCallbacks : GlobalEventListener
 
 	public override void OnEvent(LogEvent evnt)
 	{
-		if (WeaponDebugger.IsRequest(evnt.message))
+		if (WeaponDebugger.IsRequest(evnt.message) || PlayerStatsManager.IsStatsMessage(evnt.message))
 		{
 			return;
 		}

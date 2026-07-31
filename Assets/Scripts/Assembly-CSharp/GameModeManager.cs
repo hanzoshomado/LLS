@@ -102,6 +102,7 @@ public class GameModeManager : GlobalEventListener
 			{
 				_gameInfoController.state.WinnerSteamName = allLivingCharacters[0].state.SteamUsername;
 				allLivingCharacters[0].PlayWinAnimation();
+				PlayerStatsManager.ReportWin(allLivingCharacters[0]);
 			}
 			else
 			{
