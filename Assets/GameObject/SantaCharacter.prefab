@@ -2713,6 +2713,14 @@ MonoBehaviour:
     Speed: -1
     Delay: 0
     IsLocal: 1
+  CrossbowAimCameraOffset: {x: 0, y: 0, z: -3}
+  CrossbowAimFirstPerson: 1
+  AimCameraOffset: {x: 0, y: 0, z: -3}
+  AimFirstPerson: 0
+  HideHeadWhileAiming: 0
+  FadeCharacterWhileAiming: 1
+  AimFadeAlpha: 0.35
+  AimFadeSpeed: 4
   ReindeerCameraPosition: {fileID: 4630643969539439}
   ReindeerAnimator: {fileID: 114831874417830518}
   ReindeerMovementMultiplier: 0.75
@@ -2746,6 +2754,8 @@ MonoBehaviour:
     Beam: {fileID: 0}
     AmmoDrainPerSecond: 0
     DamagePerSecond: 0
+  PistolAimCameraOffset: {x: 0, y: 0, z: -3}
+  PistolAimFirstPerson: 1
   LightningStats:
     SpawnDistance: 0
     TimeBetweenAttacks: 0
@@ -2756,6 +2766,8 @@ MonoBehaviour:
     Beam: {fileID: 0}
     AmmoDrainPerSecond: 20
     DamagePerSecond: 75
+  LightningAimCameraOffset: {x: 0, y: 0, z: -3}
+  LightningAimFirstPerson: 0
   LightningBeamInstance: {fileID: 4804060753690095674}
   LightningAudioSource: {fileID: 7327469946619076926}
   LightningBeamStopsAtHit: 1
@@ -2775,8 +2787,10 @@ MonoBehaviour:
     AmmoDrainPerSecond: 0
     DamagePerSecond: 0
   SnowballDamage: 30
-  SnowballExplosionRadius: 3
+  SnowballExplosionRadius: 5
   SnowballThrowForce: 70
+  SnowballAimCameraOffset: {x: 0, y: 0, z: -4}
+  SnowballAimFirstPerson: 0
   GrenadeStats:
     SpawnDistance: 0
     TimeBetweenAttacks: 0
@@ -2788,7 +2802,7 @@ MonoBehaviour:
     AmmoDrainPerSecond: 0
     DamagePerSecond: 0
   GrenadeDamage: 50
-  GrenadeExplosionRadius: 5
+  GrenadeExplosionRadius: 8
   GrenadeThrowForce: 70
   GrenadeWindupLocalOffset: {x: 0.02, y: 0.05, z: -0.09}
   GrenadeWindupLocalEuler: {x: -25, y: 0, z: 0}
@@ -2821,6 +2835,16 @@ MonoBehaviour:
     DamagePerSecond: 0
   ShockRifleDamage: 75
   ShockRiflePierces: 1
+  ShockRifleAimCameraOffset: {x: 0, y: 0, z: -3}
+  ShockRifleAimFirstPerson: 0
+  ShowShockRifleTracer: 1
+  ShockRifleTracerStartColor: {r: 0.55, g: 0.85, b: 1, a: 1}
+  ShockRifleTracerEndColor: {r: 0.25, g: 0.6, b: 1, a: 0.9}
+  ShockRifleTracerStartWidth: 0.14
+  ShockRifleTracerEndWidth: 0.05
+  ShockRifleTracerFadeTime: 0.2
+  ShockRifleTracerMaterial: {fileID: 0}
+  ShockRifleImpactVFX: {fileID: 0}
   BoxingGlovesDamage: 42
   TimeBetweenBoxingGlovesAttacks: 0.8
   BoxingGlovesMovementMultiplier: 1

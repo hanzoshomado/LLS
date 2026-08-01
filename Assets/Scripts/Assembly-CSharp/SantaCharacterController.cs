@@ -90,6 +90,33 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public Transform AimCameraPosition;
 	public ITweenHash AimInHash;
 	public ITweenHash AimOutHash;
+	public Vector3 CrossbowAimCameraOffset = new Vector3(0f, 0f, -3f);
+	// Small weapons don't block the view, so they keep the old aim: camera right up on the
+	// sights, head hidden, no ghosting. The offset above is ignored while this is on.
+	public bool CrossbowAimFirstPerson = true;
+
+	[Header("Aim Camera")]
+	// Where the camera sits while aiming, relative to AimCameraPosition, in CameraRoot's space.
+	// Z is a pullback along the aim axis and is free - the camera looks down that same axis, so
+	// sliding along it leaves the ray through the crosshair untouched. X and Y shift the framing
+	// but move the camera OFF that ray, and since shots still come from AimCameraPosition, big
+	// values there make the crosshair disagree with where rounds land. Keep them small, or move
+	// AimCameraPosition itself, which carries the shot origin with it.
+	//
+	// Used by any aiming weapon that doesn't set its own override below.
+	public Vector3 AimCameraOffset = new Vector3(0f, 0f, -3f);
+	// Fallback for weapons without their own override. First person ignores the offset, hides the
+	// head and skips the ghosting - the camera sits on the aim point like it used to.
+	public bool AimFirstPerson;
+	// Only worth turning on if the pullback is small enough to put the camera inside the head.
+	// First-person aim hides the head regardless.
+	public bool HideHeadWhileAiming;
+	// A 3.87-unit character fills the middle of the screen at close range, so the copy you
+	// control ghosts out while aiming. Never applied to anyone else's view of you.
+	public bool FadeCharacterWhileAiming = true;
+	[Range(0f, 1f)]
+	public float AimFadeAlpha = 0.35f;
+	public float AimFadeSpeed = 4f;
 
 	[Header("Reindeer")]
 	public Transform ReindeerCameraPosition;
@@ -108,9 +135,13 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	[Header("Pistol")]
 	public RangedWeaponStats PistolStats;
+	public Vector3 PistolAimCameraOffset = new Vector3(0f, 0f, -3f);
+	public bool PistolAimFirstPerson = true;
 
 	[Header("Lightning")]
 	public RangedWeaponStats LightningStats;
+	public Vector3 LightningAimCameraOffset = new Vector3(0f, 0f, -3f);
+	public bool LightningAimFirstPerson;
 	public GameObject LightningBeamInstance;
 	public AudioSource LightningAudioSource; // assign in Inspector, put it on/near the muzzle
 	// The beam FX is authored to fly far further than the gun can hit, so its particles get their
@@ -129,6 +160,9 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public int SnowballDamage;
 	public float SnowballExplosionRadius;
 	public float SnowballThrowForce;
+	// The bulkiest weapon, so it wants the most room by default.
+	public Vector3 SnowballAimCameraOffset = new Vector3(0f, 0f, -3f);
+	public bool SnowballAimFirstPerson;
 
 	[Header("Grenade")]
 	public RangedWeaponStats GrenadeStats;
@@ -171,6 +205,8 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public int ShockRifleDamage = 75;
 	// Rail shots punch through everyone in the line rather than stopping at the first target.
 	public bool ShockRiflePierces = true;
+	public Vector3 ShockRifleAimCameraOffset = new Vector3(0f, 0f, -3f);
+	public bool ShockRifleAimFirstPerson;
 	// Hitscan leaves nothing in the world to look at, so the shot draws its own tracer.
 	public bool ShowShockRifleTracer = true;
 	public Color ShockRifleTracerStartColor = new Color(0.55f, 0.85f, 1f, 1f);
@@ -257,6 +293,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private ShockRifleTracer _shockRifleTracer;
 	private Transform _shockRifleModel;
 	private bool _shockRifleModelSearched;
+	private CharacterFader _characterFader;
 	private AnimatorControllerParameter[] _upperAnimatorParameters;
 	private LightningBeamLayer[] _lightningBeamLayers;
 	private LightningBeamGlow[] _lightningBeamGlows;
@@ -403,6 +440,100 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		return _isInAimState;
 	}
 
+	// AimCameraPosition is where shots come from, and it sits inside the character - the capsule
+	// alone is 0.91 across, and the aim point is 0.14 behind the character's own origin. Putting
+	// the camera there is what made the weapon fill the screen and forced the head to be hidden.
+	//
+	// The offset is deliberately pure local Z. AimCameraPosition has no local rotation and the
+	// camera is rotated to zero on the way in, so both look straight down CameraRoot's forward
+	// axis - sliding the camera back along that same axis leaves the ray through the crosshair
+	// exactly where it was. Aim stays honest, the framing doesn't.
+	private Vector3 getAimCameraLocalPosition()
+	{
+		// First person puts the camera right on the aim point, which is the behaviour everything
+		// had before the pullback existed.
+		return AimCameraPosition.localPosition + (isFirstPersonAim() ? Vector3.zero : getAimCameraOffset());
+	}
+
+	// Per weapon: small guns are fine up close, bulky ones need the camera pulled back.
+	private bool isFirstPersonAim()
+	{
+		if (HasCrossbow())
+		{
+			return CrossbowAimFirstPerson;
+		}
+		if (HasPistol())
+		{
+			return PistolAimFirstPerson;
+		}
+		if (HasLightningGun())
+		{
+			return LightningAimFirstPerson;
+		}
+		if (HasSnowballLauncher())
+		{
+			return SnowballAimFirstPerson;
+		}
+		if (HasShockRifle())
+		{
+			return ShockRifleAimFirstPerson;
+		}
+		return AimFirstPerson;
+	}
+
+	// Per-weapon so a launcher can sit further back than a pistol. Read at the moment the aim
+	// tween starts, so switching weapons mid-aim keeps whatever framing it started with until the
+	// next time you aim - which is the same way the rest of the aim state behaves.
+	private Vector3 getAimCameraOffset()
+	{
+		if (HasCrossbow())
+		{
+			return CrossbowAimCameraOffset;
+		}
+		if (HasPistol())
+		{
+			return PistolAimCameraOffset;
+		}
+		if (HasLightningGun())
+		{
+			return LightningAimCameraOffset;
+		}
+		if (HasSnowballLauncher())
+		{
+			return SnowballAimCameraOffset;
+		}
+		if (HasShockRifle())
+		{
+			return ShockRifleAimCameraOffset;
+		}
+		return AimCameraOffset;
+	}
+
+	// Ghosts your own character while the aim camera is in close. Skipped for the grenade, which
+	// shares the IsAiming flag but never moves the camera in the first place.
+	private void updateCharacterFade()
+	{
+		if (_characterFader == null)
+		{
+			if (!FadeCharacterWhileAiming)
+			{
+				return;
+			}
+			// Head plus every weapon model - the parts that sit between the camera and the
+			// crosshair. The body stays solid so you can still read your own position.
+			Transform[] fadeRoots = new Transform[1 + WeaponModels.Length];
+			fadeRoots[0] = ((Head != null) ? Head.transform : null);
+			for (int i = 0; i < WeaponModels.Length; i++)
+			{
+				fadeRoots[i + 1] = ((WeaponModels[i] != null) ? WeaponModels[i].transform : null);
+			}
+			_characterFader = new CharacterFader(fadeRoots);
+		}
+		// First person hides the head outright, so there is nothing left worth ghosting.
+		bool shouldFade = FadeCharacterWhileAiming && _isInAimState && !_aimStateIsGrenadeWindup && !isFirstPersonAim();
+		_characterFader.Tick(shouldFade, AimFadeAlpha, AimFadeSpeed);
+	}
+
  
 	private void setIsAiming(bool value)
 	{
@@ -428,9 +559,12 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 				return;
 			}
 			PlayerCamera.GetComponent<ITweenMover>().RotateTo(Vector3.zero, AimInHash);
-			PlayerCamera.GetComponent<ITweenMover>().MoveTo(AimCameraPosition.localPosition, AimInHash, delegate
+			PlayerCamera.GetComponent<ITweenMover>().MoveTo(getAimCameraLocalPosition(), AimInHash, delegate
 			{
-				Head.SetActive(false);
+				if (HideHeadWhileAiming || isFirstPersonAim())
+				{
+					Head.SetActive(false);
+				}
 			});
 		}
 		else if (isInAimState && !_isInAimState)
@@ -1973,6 +2107,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			PlayerCamera.fieldOfView = Mathf.Lerp(PlayerCamera.fieldOfView, targetFOV, Time.deltaTime * FOVLerpSpeed);
 
 			updateGrenadeArc();
+			updateCharacterFade();
 		}
 		else
 		{
