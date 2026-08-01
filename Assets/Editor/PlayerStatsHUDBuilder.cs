@@ -62,6 +62,13 @@ public static class PlayerStatsHUDBuilder
 		hud.EliminationLabel = createText(elimination, font, 24, TextAnchor.LowerCenter, new Color(0.91f, 0.16f, 0.16f, 1f));
 		elimination.gameObject.SetActive(false);
 
+		// Kill feed, top-left, growing downward. Rich text is on by default, which the coloured
+		// names rely on.
+		RectTransform killFeed = createRect("KillFeed", hudRect, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f));
+		killFeed.anchoredPosition = new Vector2(12f, -10f);
+		killFeed.sizeDelta = new Vector2(360f, 90f);
+		hud.KillFeedLabel = createText(killFeed, font, 14, TextAnchor.UpperLeft, Color.white);
+
 		// Between-round leaderboard, centred.
 		RectTransform leaderboard = createRect("Leaderboard", hudRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f));
 		leaderboard.anchoredPosition = new Vector2(0f, -30f);

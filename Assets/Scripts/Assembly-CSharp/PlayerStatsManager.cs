@@ -26,6 +26,10 @@ public class PlayerStatsManager : GlobalEventListener
 
 	public const string EliminationPrefix = "#elim ";
 
+	// Unlike the elimination popup this one goes to everybody, so the whole lobby sees who killed
+	// who. Fields are pipe separated because usernames can contain spaces.
+	public const string KillFeedPrefix = "#feed ";
+
 	private class PlayerIdentity
 	{
 		public BoltConnection Connection;
@@ -80,9 +84,14 @@ public class PlayerStatsManager : GlobalEventListener
 	}
 
 	// Anything this class routes over LogEvent, so the on-screen log box can skip it.
+	public static bool IsKillFeedMessage(string message)
+	{
+		return message != null && message.StartsWith(KillFeedPrefix, System.StringComparison.Ordinal);
+	}
+
 	public static bool IsInternalMessage(string message)
 	{
-		return IsStatsMessage(message) || IsEliminationMessage(message);
+		return IsStatsMessage(message) || IsEliminationMessage(message) || IsKillFeedMessage(message);
 	}
 
 	// Host only. Nothing stops two players typing the same name, but stats rows and name tags
@@ -200,7 +209,7 @@ public class PlayerStatsManager : GlobalEventListener
 		return list;
 	}
 
-	public static void ReportKill(SantaCharacterController killer, SantaCharacterController victim)
+	public static void ReportKill(SantaCharacterController killer, SantaCharacterController victim, WeaponType weaponUsed)
 	{
 		if (!BoltNetwork.isServer || _instance == null || killer == null)
 		{
@@ -208,6 +217,36 @@ public class PlayerStatsManager : GlobalEventListener
 		}
 		_instance.serverAddKill(getUsernameOf(killer));
 		_instance.serverNotifyElimination(killer, getUsernameOf(victim));
+		_instance.serverBroadcastKillFeed(killer, victim, weaponUsed);
+	}
+
+	// Distance is measured here rather than sent from the shooter so it can't be spoofed, and
+	// rounded to a whole unit because nobody reads decimals in a kill feed.
+	private void serverBroadcastKillFeed(SantaCharacterController killer, SantaCharacterController victim, WeaponType weaponUsed)
+	{
+		string killerName = getUsernameOf(killer);
+		string victimName = getUsernameOf(victim);
+		if (killerName.Length == 0 || victimName.Length == 0 || victim == null)
+		{
+			return;
+		}
+		int distance = Mathf.RoundToInt(Vector3.Distance(killer.transform.position, victim.transform.position));
+		int verbSeed = ((killer.entity != null && killer.entity.isAttached) ? killer.state.ExecutingAttackID : 0);
+		LogEvent logEvent = LogEvent.Create(GlobalTargets.Everyone);
+		logEvent.message = string.Concat(new string[]
+		{
+			KillFeedPrefix,
+			killerName,
+			"|",
+			victimName,
+			"|",
+			((int)weaponUsed).ToString(CultureInfo.InvariantCulture),
+			"|",
+			distance.ToString(CultureInfo.InvariantCulture),
+			"|",
+			verbSeed.ToString(CultureInfo.InvariantCulture)
+		});
+		logEvent.Send();
 	}
 
 	// The popup belongs only to whoever landed the kill, so it goes to that one connection
@@ -382,6 +421,21 @@ public class PlayerStatsManager : GlobalEventListener
 		if (IsEliminationMessage(evnt.message))
 		{
 			PlayerStatsHUD.ShowElimination(evnt.message.Substring(EliminationPrefix.Length));
+			return;
+		}
+		if (IsKillFeedMessage(evnt.message))
+		{
+			string[] feed = evnt.message.Substring(KillFeedPrefix.Length).Split(new char[] { '|' }, 5);
+			int feedWeapon;
+			int feedDistance;
+			int feedSeed;
+			if (feed.Length == 5
+				&& int.TryParse(feed[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out feedWeapon)
+				&& int.TryParse(feed[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out feedDistance)
+				&& int.TryParse(feed[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out feedSeed))
+			{
+				PlayerStatsHUD.ShowKill(feed[0], feed[1], (WeaponType)feedWeapon, feedDistance, feedSeed);
+			}
 			return;
 		}
 		if (!IsStatsMessage(evnt.message))

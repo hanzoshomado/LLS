@@ -22,6 +22,17 @@ public class PlayerStatsHUD : MonoBehaviour
 	public string EliminationFormat = "You eliminated ({0})";
 	public float EliminationDisplaySeconds = 3f;
 
+	[Header("Kill Feed")]
+	public Text KillFeedLabel;
+	public int KillFeedMaxLines = 5;
+	public float KillFeedSeconds = 6f;
+	public Color KillFeedNameColor = new Color(1f, 0.83f, 0.3f, 1f);
+	public Color KillFeedTextColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+	public Color KillFeedDistanceColor = new Color(0.6f, 0.62f, 0.65f, 1f);
+	// Multiplies the raw world distance before it's shown. The character is 3.87 units tall, so
+	// leave this at 1 to read distances in world units or scale it if you want them in metres.
+	public float KillFeedDistanceScale = 1f;
+
 	[Header("Leaderboard")]
 	public GameObject LeaderboardRoot;
 	public Text LeaderboardNames;
@@ -38,6 +49,24 @@ public class PlayerStatsHUD : MonoBehaviour
 	public string NoCrownPrefix = "   ";
 	public string ScoreSeparator = "          ";
 	public string EmptyLeaderboardText = "(no rounds played yet)";
+
+	private struct KillFeedLine
+	{
+		public string Killer;
+		public string Victim;
+		public WeaponType Weapon;
+		public int Distance;
+		public int VerbSeed;
+		public float ShownTime;
+	}
+
+	// Static for the same reason as the elimination popup: kills arrive over the network and a
+	// scene load must not drop the ones already on screen.
+	private static readonly List<KillFeedLine> _killFeed = new List<KillFeedLine>();
+
+	private int _lastKillFeedCount = -1;
+
+	private readonly StringBuilder _killFeedBuilder = new StringBuilder();
 
 	// Static so a scene load can't swallow a popup already in flight.
 	private static string _pendingEliminationName;
@@ -59,6 +88,69 @@ public class PlayerStatsHUD : MonoBehaviour
 		updateWinCounter();
 		updateLeaderboard();
 		updateElimination();
+		updateKillFeed();
+	}
+
+	// Every peer gets the same broadcast, so this is called on all of them - unlike the
+	// elimination popup, which only reaches whoever landed the kill.
+	public static void ShowKill(string killerName, string victimName, WeaponType weaponUsed, int distance, int verbSeed)
+	{
+		if (string.IsNullOrEmpty(killerName) || string.IsNullOrEmpty(victimName))
+		{
+			return;
+		}
+		_killFeed.Add(new KillFeedLine
+		{
+			Killer = killerName,
+			Victim = victimName,
+			Weapon = weaponUsed,
+			Distance = distance,
+			VerbSeed = verbSeed,
+			ShownTime = Time.time
+		});
+	}
+
+	private void updateKillFeed()
+	{
+		if (KillFeedLabel == null)
+		{
+			return;
+		}
+		bool changed = false;
+		while (_killFeed.Count > 0 && Time.time > _killFeed[0].ShownTime + KillFeedSeconds)
+		{
+			_killFeed.RemoveAt(0);
+			changed = true;
+		}
+		while (_killFeed.Count > KillFeedMaxLines)
+		{
+			_killFeed.RemoveAt(0);
+			changed = true;
+		}
+		if (_killFeed.Count == _lastKillFeedCount && !changed)
+		{
+			return;
+		}
+		_lastKillFeedCount = _killFeed.Count;
+
+		string nameHex = ColorUtility.ToHtmlStringRGB(KillFeedNameColor);
+		string textHex = ColorUtility.ToHtmlStringRGB(KillFeedTextColor);
+		string distanceHex = ColorUtility.ToHtmlStringRGB(KillFeedDistanceColor);
+		_killFeedBuilder.Length = 0;
+		for (int i = 0; i < _killFeed.Count; i++)
+		{
+			KillFeedLine line = _killFeed[i];
+			if (i > 0)
+			{
+				_killFeedBuilder.Append('\n');
+			}
+			_killFeedBuilder.Append("<color=#").Append(nameHex).Append('>').Append(line.Killer).Append("</color> ")
+				.Append("<color=#").Append(textHex).Append('>').Append(KillFeedVerbs.Get(line.Weapon, line.VerbSeed)).Append("</color> ")
+				.Append("<color=#").Append(nameHex).Append('>').Append(line.Victim).Append("</color> ")
+				.Append("<color=#").Append(distanceHex).Append(">(")
+				.Append(Mathf.RoundToInt(line.Distance * KillFeedDistanceScale)).Append("m)</color>");
+		}
+		KillFeedLabel.text = _killFeedBuilder.ToString();
 	}
 
 	// Called on the machine of whoever got the kill - the host resolves that, so this is

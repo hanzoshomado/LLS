@@ -450,10 +450,39 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 	private void OnIsAimingChanged()
 	{
-		   Debug.Log("OnIsAimingChanged fired | HasBeenUnderLocalControl: " + HasBeenUnderLocalControl() + " | state.IsAiming: " + base.state.IsAiming);
+		// Only for characters this machine isn't driving. The one you control is handled every
+		// frame in updateAimState, straight off your own input.
 		if (!HasBeenUnderLocalControl())
 		{
 			setIsAiming(base.state.IsAiming);
+		}
+	}
+
+	// The aim pose used to be set only from inside ExecuteAttackCommands, which meant it depended
+	// on the command path and on state.IsAiming coming back from the owner. On the host both are
+	// immediate - it writes the state itself - so aiming looked fine there while clients never
+	// entered the pose at all.
+	//
+	// This drives it from the input directly instead, every frame, so it doesn't matter whether
+	// the command call landed or whether the flag made the round trip. It's presentation only;
+	// the authoritative flag the owner writes still governs anything that affects the game.
+	private void updateAimState()
+	{
+		bool aiming;
+		if (HasBeenUnderLocalControl())
+		{
+			// Mirrors the flag ExecuteAttackCommands builds, minus the round trip. PollKeys runs
+			// for every character on this machine, so these are only ever read for the one being
+			// controlled here.
+			aiming = IsAlive() && ((_attack2Held && HasAimableRangedWeapon()) || (_attack1Held && HasGrenade()));
+		}
+		else
+		{
+			aiming = base.state.IsAiming;
+		}
+		if (aiming != _isInAimState)
+		{
+			setIsAiming(aiming);
 		}
 	}
 
@@ -2245,6 +2274,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 
 		// These run for every copy of the character, not just the local one, so other players can
 		// see the wind-up and the beam too.
+		updateAimState();
 		updateGrenadeWindupPose();
 		if (_shockRifleTracer != null)
 		{
@@ -2472,7 +2502,7 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 				if (attackingCharacter != this)
 				{
 					attackingCharacter.gainKillHeal();
-					PlayerStatsManager.ReportKill(attackingCharacter, this);
+					PlayerStatsManager.ReportKill(attackingCharacter, this, weaponUsed);
 				}
 				dropCurrentWeapon();
 				destroyThisAndCreateRagdoll(damageDirection);
