@@ -43,6 +43,9 @@ public class AudioLibrary : Singleton<AudioLibrary>
 	public AudioClipDefinition[] PistolFire;
 	public AudioClipDefinition[] SnowballThrow;
 	public AudioClipDefinition[] LightningFire;
+	// Loops while the rail is charging, then the firing one-shot takes over on release.
+	public AudioClipDefinition[] RailGunCharging;
+	public AudioClipDefinition[] RailGunFiring;
 
 	public AudioClipDefinition[] CrossbowFlyBy;
 

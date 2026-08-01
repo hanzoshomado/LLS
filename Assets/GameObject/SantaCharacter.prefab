@@ -2833,9 +2833,15 @@ MonoBehaviour:
     Beam: {fileID: 0}
     AmmoDrainPerSecond: 0
     DamagePerSecond: 0
+  ShockRifleMaxChargeTime: 1.2
+  ShockRifleMinDamage: 25
+  ShockRifleChargeMovementMultiplier: 0
+  ShockRifleMaxHoldTime: 0
+  ShockRifleChargeFOVOffset: -12
   ShockRifleDamage: 75
   ShockRiflePierces: 1
   ShockRifleAimCameraOffset: {x: 0, y: 0, z: -3}
+  ShockRifleAudioSource: {fileID: 0}
   ShockRifleAimFirstPerson: 0
   ShowShockRifleTracer: 1
   ShockRifleTracerStartColor: {r: 0.55, g: 0.85, b: 1, a: 1}

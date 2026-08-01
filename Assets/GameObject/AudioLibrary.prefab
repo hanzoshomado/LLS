@@ -189,6 +189,14 @@ MonoBehaviour:
   - Clip: {fileID: 8300000, guid: 86006a03683b443bb97b353d468652d6, type: 3}
     MixerGroup: {fileID: 0}
     PitchVariation: 0
+  RailGunCharging:
+  - Clip: {fileID: 8300000, guid: 50bc9114c00e8954882c0b6a43a21c06, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
+  RailGunFiring:
+  - Clip: {fileID: 8300000, guid: b420d41b7f75a374fbd3996a985e3889, type: 3}
+    MixerGroup: {fileID: 0}
+    PitchVariation: 0
   CrossbowFlyBy:
   - Clip: {fileID: 8300000, guid: cb073976f9c08d849b93765fc7e31560, type: 3}
     MixerGroup: {fileID: 24300076, guid: 769476691cb62d940ba2b2bed05d0692, type: 2}

@@ -202,10 +202,25 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	// Slow, hitscan, hits hard - reuses SpawnDistance/TimeBetweenAttacks/MovementMultiplier/
 	// MuzzlePoint/MuzzleFlash/Range from RangedWeaponStats.
 	public RangedWeaponStats ShockRifleStats;
+	// Hold fire to spin the rail up, release to shoot. Damage lerps from Min to full over
+	// MaxChargeTime, so a panic tap still does something and a held shot is the payoff.
+	public float ShockRifleMaxChargeTime = 1.2f;
+	public int ShockRifleMinDamage = 25;
+	// Applies for as long as the trigger is down, replacing ShockRifleStats.MovementMultiplier.
+	// Sprint still multiplies on top of this, so it slows a sprint rather than cancelling it.
+	public float ShockRifleChargeMovementMultiplier = 0.3f;
+	// 0 = hold for as long as the RailGunCharging clip runs, then fire automatically.
+	public float ShockRifleMaxHoldTime;
+	// Added to the FOV at full charge, so negative zooms in. Composes with the sprint boost the
+	// same way, and the existing FOVLerpSpeed eases it in and back out on the shot.
+	public float ShockRifleChargeFOVOffset = -12f;
 	public int ShockRifleDamage = 75;
 	// Rail shots punch through everyone in the line rather than stopping at the first target.
 	public bool ShockRiflePierces = true;
 	public Vector3 ShockRifleAimCameraOffset = new Vector3(0f, 0f, -3f);
+	// Optional. Left empty, a looping source is built at runtime on the muzzle using the mixer
+	// group off the RailGunCharging clip.
+	public AudioSource ShockRifleAudioSource;
 	public bool ShockRifleAimFirstPerson;
 	// Hitscan leaves nothing in the world to look at, so the shot draws its own tracer.
 	public bool ShowShockRifleTracer = true;
@@ -290,6 +305,13 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private Quaternion _grenadeModelBaseRotation;
 	private bool _grenadeModelSearched;
 	private Vector3 _pendingKnockback;
+	private AudioSource _shockRifleChargeSource;
+	private bool _shockRifleChargeSourceBuilt;
+	private bool _wasChargingShockRifle;
+	private float _shockRifleCharge;
+	// What the last shot was charged to, for the tracer. Only meaningful where the shot was
+	// simulated; proxies draw a full-strength tracer since the charge doesn't replicate.
+	private float _shockRifleRenderCharge = 1f;
 	private ShockRifleTracer _shockRifleTracer;
 	private Transform _shockRifleModel;
 	private bool _shockRifleModelSearched;
@@ -937,7 +959,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		if (HasShockRifle())
 		{
-			return ShockRifleStats.MovementMultiplier;
+			// Winding the rail up roots you - the shot costs mobility, which is what stops a
+			// 75-damage hitscan from being free. Keyed off the command input rather than the
+			// charge timer because this also runs while a client re-simulates old commands, and
+			// the input is the only version of it that rewinds with them.
+			return (cmd.Input.Attack1Held ? ShockRifleChargeMovementMultiplier : ShockRifleStats.MovementMultiplier);
 		}
 		if (HasBoxingGloves())
 		{
@@ -1191,6 +1217,21 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			_wasCookingGrenade = isCookingGrenade;
 		}
 
+		// The rail charges the same way: hold to spin up, release to fire, damage scaling with how
+		// long it was held. Charge accumulates in command time rather than Time.time so the owner
+		// and a predicting client wind up on the same number.
+		bool isChargingRail = cmd.Input.Attack1Held && HasShockRifle();
+		bool releasedRail = _wasChargingShockRifle && HasShockRifle() && !cmd.Input.Attack1Held;
+		float railChargeOnRelease = _shockRifleCharge;
+		if (cmd.IsFirstExecution)
+		{
+			_wasChargingShockRifle = isChargingRail;
+			// Unclamped, so it measures the real hold time. Damage clamps against
+			// ShockRifleMaxChargeTime where it's used, and the extra is what the auto-fire below
+			// counts against.
+			_shockRifleCharge = (isChargingRail ? _shockRifleCharge + BoltNetwork.frameDeltaTime : 0f);
+		}
+
 		bool flag = (cmd.Input.Attack2Held && HasAimableRangedWeapon()) || isCookingGrenade;
 		if (flag && !base.state.IsAiming)
 		{
@@ -1214,6 +1255,25 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			if (releasedGrenade)
 			{
 				throwGrenade(cmd);
+			}
+			return;
+		}
+		if (HasShockRifle())
+		{
+			// Same reason as the grenade: it fires on release, so it must never reach the
+			// press-to-attack path, which would shoot every frame the trigger is down.
+			//
+			// Holding past the charge sound's length lets go for you, so the loop never restarts
+			// mid-wind-up. Damage has already capped well before that, so the tail is dead time.
+			bool holdExpired = isChargingRail && railChargeOnRelease >= getShockRifleMaxHoldTime();
+			if ((releasedRail || holdExpired) && BoltNetwork.serverTime - base.state.AttackStartTime > getTimeBetweenCurrentWeaponAttacks())
+			{
+				fireChargedRail(cmd, railChargeOnRelease);
+				if (holdExpired && cmd.IsFirstExecution)
+				{
+					// Still holding, so wind back up from zero rather than firing again next tick.
+					_shockRifleCharge = 0f;
+				}
 			}
 			return;
 		}
@@ -1264,21 +1324,116 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 					base.state.EquippedWeapon = 0;
 				}
 			}
-			if (HasShockRifle())
-			{
-				base.state.CurrentWeaponAmmo--;
-				// Marks the attack as a rail shot for tryRenderAttackID, on this machine and on
-				// everyone else's, before the weapon can be cleared out from under it.
-				base.state.AttackDirection = ShockRifleAttackDirection;
-				attackDirection = (CharacterDirection)ShockRifleAttackDirection;
-				fireShockRifle(cmd);
-				if (base.state.CurrentWeaponAmmo == 0)
-				{
-					base.state.EquippedWeapon = 0;
-				}
-			}
 		}
 		tryRenderAttackID(attackID, attackDirection);
+	}
+
+	// The rail's own fire path, because it goes off on release rather than on press.
+	private void fireChargedRail(PlayerMoveCommand cmd, float charge)
+	{
+		int attackID = base.state.ExecutingAttackID + 1;
+		float chargeFraction = ((ShockRifleMaxChargeTime > 0f) ? Mathf.Clamp01(charge / ShockRifleMaxChargeTime) : 1f);
+		if (base.entity.IsOwner())
+		{
+			base.state.AttackStartTime = BoltNetwork.serverTime;
+			// Marks the attack as a rail shot for tryRenderAttackID, on this machine and on
+			// everyone else's, before the weapon can be cleared out from under it.
+			base.state.AttackDirection = ShockRifleAttackDirection;
+			base.state.ExecutingAttackID++;
+			base.state.CurrentWeaponAmmo--;
+			fireShockRifle(cmd, chargeFraction);
+			if (base.state.CurrentWeaponAmmo == 0)
+			{
+				base.state.EquippedWeapon = 0;
+			}
+		}
+		_shockRifleRenderCharge = chargeFraction;
+		tryRenderAttackID(attackID, (CharacterDirection)ShockRifleAttackDirection);
+	}
+
+	// Loops the spin-up for as long as the trigger is down, and stops the moment it comes up -
+	// which is the same moment renderShockRifleShot fires the report, so one runs into the other.
+	//
+	// Driven off the raw input rather than the command charge so it reacts on the frame you press,
+	// and local-only: PollKeys reads this machine's keyboard for every character it ticks, so
+	// running this on anyone else's copy would have them charging whenever you did.
+	private void updateShockRifleChargeAudio()
+	{
+		AudioSource source = getShockRifleChargeSource();
+		if (source == null)
+		{
+			return;
+		}
+		bool charging = HasShockRifle() && _attack1Held && IsAlive();
+		if (charging && !source.isPlaying)
+		{
+			source.Play();
+		}
+		else if (!charging && source.isPlaying)
+		{
+			source.Stop();
+		}
+	}
+
+	private AudioSource getShockRifleChargeSource()
+	{
+		if (ShockRifleAudioSource != null)
+		{
+			return ShockRifleAudioSource;
+		}
+		if (_shockRifleChargeSourceBuilt)
+		{
+			return _shockRifleChargeSource;
+		}
+		_shockRifleChargeSourceBuilt = true;
+		if (Singleton<AudioLibrary>.Instance == null)
+		{
+			return null;
+		}
+		AudioClipDefinition[] clips = Singleton<AudioLibrary>.Instance.RailGunCharging;
+		if (clips == null || clips.Length == 0 || clips[0] == null || clips[0].Clip == null)
+		{
+			return null;
+		}
+		GameObject gameObject = new GameObject("ShockRifleChargeAudio");
+		gameObject.transform.SetParent(((ShockRifleStats.MuzzlePoint != null) ? ShockRifleStats.MuzzlePoint : base.transform), false);
+		_shockRifleChargeSource = gameObject.AddComponent<AudioSource>();
+		_shockRifleChargeSource.clip = clips[0].Clip;
+		_shockRifleChargeSource.outputAudioMixerGroup = clips[0].MixerGroup;
+		// Not looped: the shot now goes off as the clip ends, so a loop would only ever restart
+		// for the frame before it stops.
+		_shockRifleChargeSource.loop = false;
+		_shockRifleChargeSource.playOnAwake = false;
+		return _shockRifleChargeSource;
+	}
+
+	// How long the trigger can be held before the shot goes off on its own. Defaults to the length
+	// of the RailGunCharging clip, so the wind-up sound plays exactly once and the shot lands as
+	// it ends. Set above 0 to override; keep it at or above ShockRifleMaxChargeTime or full
+	// damage becomes unreachable.
+	private float getShockRifleMaxHoldTime()
+	{
+		if (ShockRifleMaxHoldTime > 0f)
+		{
+			return ShockRifleMaxHoldTime;
+		}
+		AudioLibrary library = Singleton<AudioLibrary>.Instance;
+		if (library != null && library.RailGunCharging != null && library.RailGunCharging.Length > 0
+			&& library.RailGunCharging[0] != null && library.RailGunCharging[0].Clip != null)
+		{
+			return library.RailGunCharging[0].Clip.length;
+		}
+		return ShockRifleMaxChargeTime;
+	}
+
+	// 0 to 1 while the trigger is held, for a charge meter on the HUD.
+	public float GetShockRifleChargeFraction()
+	{
+		if (!HasShockRifle() || ShockRifleMaxChargeTime <= 0f)
+		{
+			return 0f;
+		}
+		return Mathf.Clamp01(_shockRifleCharge / ShockRifleMaxChargeTime);
 	}
 
 	private void throwGrenade(PlayerMoveCommand cmd)
@@ -1298,10 +1453,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	// Hitscan rail shot. Runs on the owner only, and rewinds hitboxes to the frame the shooter
 	// was actually looking at - same lag compensation the crossbow and lightning gun use, which
 	// matters far more here because one shot is most of a health bar.
-	private void fireShockRifle(PlayerMoveCommand cmd)
+	private void fireShockRifle(PlayerMoveCommand cmd, float chargeFraction)
 	{
 		// Nothing visual here - this only runs on the owner, so anything played from it would be
 		// invisible to everyone else. The flash, report and tracer live in renderShockRifleShot.
+		int damage = Mathf.RoundToInt(Mathf.Lerp(ShockRifleMinDamage, ShockRifleDamage, Mathf.Clamp01(chargeFraction)));
 		Vector3 origin = AimCameraPosition.position;
 		Vector3 direction = AimCameraPosition.forward;
 		Ray ray = new Ray(origin, direction);
@@ -1331,11 +1487,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			Vector3 worldImpactPosition = origin + direction * hit.distance;
 			if (hit.hitbox.hitboxType == BoltHitboxType.Body)
 			{
-				component.TryTakeDamageFromAttack(this, ShockRifleDamage, direction, base.state.ExecutingAttackID, WeaponType.ShockRifle, worldImpactPosition);
+				component.TryTakeDamageFromAttack(this, damage, direction, base.state.ExecutingAttackID, WeaponType.ShockRifle, worldImpactPosition);
 			}
 			else
 			{
-				component.TryTakeReindeerDamageFromAttack(this, ShockRifleDamage, direction, base.state.ExecutingAttackID, WeaponType.ShockRifle, worldImpactPosition);
+				component.TryTakeReindeerDamageFromAttack(this, damage, direction, base.state.ExecutingAttackID, WeaponType.ShockRifle, worldImpactPosition);
 			}
 			if (!ShockRiflePierces)
 			{
@@ -1349,9 +1505,14 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	// the actual hit; none of this touches gameplay.
 	private void renderShockRifleShot()
 	{
-		// Borrowing the launcher's fire animation and the pistol's report until the rifle gets
-		// its own clip and sound.
-		Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.PistolFire, UpperAnimator.transform);
+		// Borrowing the launcher's fire animation until the rifle gets its own clip. Falls back to
+		// the pistol report while RailGunFiring is still empty in the AudioLibrary.
+		AudioClipDefinition[] fireClips = Singleton<AudioLibrary>.Instance.RailGunFiring;
+		if (fireClips == null || fireClips.Length == 0)
+		{
+			fireClips = Singleton<AudioLibrary>.Instance.PistolFire;
+		}
+		Singleton<AudioManager>.Instance.PlayClipAtTransform(fireClips, UpperAnimator.transform);
 		UpperAnimator.SetTrigger("FireSnowball");
 		if (ShockRifleStats.MuzzleFlash != null)
 		{
@@ -1404,8 +1565,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		_shockRifleTracer.TracerMaterial = ShockRifleTracerMaterial;
 		_shockRifleTracer.StartColor = ShockRifleTracerStartColor;
 		_shockRifleTracer.EndColor = ShockRifleTracerEndColor;
-		_shockRifleTracer.StartWidth = ShockRifleTracerStartWidth;
-		_shockRifleTracer.EndWidth = ShockRifleTracerEndWidth;
+		// A tap looks like a tap. Proxies don't get the charge, so their tracers draw full width.
+		float chargeWidth = Mathf.Lerp(0.45f, 1f, _shockRifleRenderCharge);
+		_shockRifleTracer.StartWidth = ShockRifleTracerStartWidth * chargeWidth;
+		_shockRifleTracer.EndWidth = ShockRifleTracerEndWidth * chargeWidth;
 		_shockRifleTracer.FadeTime = ShockRifleTracerFadeTime;
 		_shockRifleTracer.Show(getShockRifleMuzzlePosition(), impactPosition);
 
@@ -2104,10 +2267,14 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			{
 				targetFOV += GrenadeWindupFOVBoost;
 			}
+			// Scaled by the damage charge rather than raw hold time, so the zoom stops creeping at
+			// the same moment the damage does - the plateau is the tell that you're at full power.
+			targetFOV += ShockRifleChargeFOVOffset * GetShockRifleChargeFraction();
 			PlayerCamera.fieldOfView = Mathf.Lerp(PlayerCamera.fieldOfView, targetFOV, Time.deltaTime * FOVLerpSpeed);
 
 			updateGrenadeArc();
 			updateCharacterFade();
+			updateShockRifleChargeAudio();
 		}
 		else
 		{

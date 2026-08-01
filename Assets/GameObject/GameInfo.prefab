@@ -45,7 +45,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 190ab74287c3c7c69fbacfede993f788, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  SecondsBeforeStartingGame: 5
+  SecondsBeforeStartingGame: 0
   SecondsBeforeStartingGameAfterEnded: 5
   MinPlayersToStartGame: 1
 --- !u!114 &114618682377417806
