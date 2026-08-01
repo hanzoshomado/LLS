@@ -171,6 +171,15 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	public int ShockRifleDamage = 75;
 	// Rail shots punch through everyone in the line rather than stopping at the first target.
 	public bool ShockRiflePierces = true;
+	// Hitscan leaves nothing in the world to look at, so the shot draws its own tracer.
+	public bool ShowShockRifleTracer = true;
+	public Color ShockRifleTracerStartColor = new Color(0.55f, 0.85f, 1f, 1f);
+	public Color ShockRifleTracerEndColor = new Color(0.25f, 0.6f, 1f, 0.9f);
+	public float ShockRifleTracerStartWidth = 0.14f;
+	public float ShockRifleTracerEndWidth = 0.05f;
+	public float ShockRifleTracerFadeTime = 0.2f;
+	public Material ShockRifleTracerMaterial; // optional; a built-in unlit shader is used when empty
+	public GameObject ShockRifleImpactVFX; // optional; spawned where the rail lands
 
 	[Header("Boxing Gloves")]
 	public int BoxingGlovesDamage;
@@ -245,6 +254,9 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	private Quaternion _grenadeModelBaseRotation;
 	private bool _grenadeModelSearched;
 	private Vector3 _pendingKnockback;
+	private ShockRifleTracer _shockRifleTracer;
+	private Transform _shockRifleModel;
+	private bool _shockRifleModelSearched;
 	private AnimatorControllerParameter[] _upperAnimatorParameters;
 	private LightningBeamLayer[] _lightningBeamLayers;
 	private LightningBeamGlow[] _lightningBeamGlows;
@@ -260,6 +272,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	// remote clients the weapon has already been cleared to None everywhere, so the equipped
 	// weapon can't tell them the attack was a grenade throw. Deliberately outside CharacterDirection.
 	private const int GrenadeThrowAttackDirection = 100;
+
+	// Same trick for the rail shot: on the last round in the magazine the weapon is cleared to
+	// None below, everywhere, so by the time ExecutingAttackID replicates nothing else still says
+	// a shock rifle fired - and the shot would render as a punch.
+	private const int ShockRifleAttackDirection = 101;
 
 	// How long a copy of a character that isn't simulating input keeps showing the lightning as
 	// firing after the last attack tick reached it. Long enough to bridge the gap between
@@ -1116,6 +1133,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			if (HasShockRifle())
 			{
 				base.state.CurrentWeaponAmmo--;
+				// Marks the attack as a rail shot for tryRenderAttackID, on this machine and on
+				// everyone else's, before the weapon can be cleared out from under it.
+				base.state.AttackDirection = ShockRifleAttackDirection;
+				attackDirection = (CharacterDirection)ShockRifleAttackDirection;
 				fireShockRifle(cmd);
 				if (base.state.CurrentWeaponAmmo == 0)
 				{
@@ -1145,10 +1166,8 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 	// matters far more here because one shot is most of a health bar.
 	private void fireShockRifle(PlayerMoveCommand cmd)
 	{
-		if (ShockRifleStats.MuzzleFlash != null)
-		{
-			ShockRifleStats.MuzzleFlash.Play();
-		}
+		// Nothing visual here - this only runs on the owner, so anything played from it would be
+		// invisible to everyone else. The flash, report and tracer live in renderShockRifleShot.
 		Vector3 origin = AimCameraPosition.position;
 		Vector3 direction = AimCameraPosition.forward;
 		Ray ray = new Ray(origin, direction);
@@ -1189,6 +1208,107 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 				break;
 			}
 		}
+	}
+
+	// Runs on every client - the shooter's, the host's and every spectator's - because
+	// tryRenderAttackID is driven by ExecutingAttackID, which replicates. fireShockRifle resolves
+	// the actual hit; none of this touches gameplay.
+	private void renderShockRifleShot()
+	{
+		// Borrowing the launcher's fire animation and the pistol's report until the rifle gets
+		// its own clip and sound.
+		Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.PistolFire, UpperAnimator.transform);
+		UpperAnimator.SetTrigger("FireSnowball");
+		if (ShockRifleStats.MuzzleFlash != null)
+		{
+			ShockRifleStats.MuzzleFlash.Play();
+		}
+		showShockRifleTracer();
+	}
+
+	private void showShockRifleTracer()
+	{
+		if (!ShowShockRifleTracer || AimCameraPosition == null)
+		{
+			return;
+		}
+		Vector3 rayOrigin;
+		Vector3 rayDirection;
+		if (HasBeenUnderLocalControl())
+		{
+			// The same axis fireShockRifle used, so the tracer ends up on the crosshair.
+			rayOrigin = AimCameraPosition.position;
+			rayDirection = AimCameraPosition.forward;
+		}
+		else
+		{
+			// Proxies never run ExecuteCommand, so CameraRoot - and AimCameraPosition under it -
+			// is frozen at its authored pitch. TiltRoot is given the same rotation and replicates.
+			rayOrigin = TiltRoot.position;
+			rayDirection = TiltRoot.forward;
+		}
+
+		float num = ((ShockRifleStats.Range > 0f) ? ShockRifleStats.Range : 200f);
+		// Environment only, matching fireShockRifle: the rail pierces players, so stopping the
+		// tracer at one would draw it short of where the shot really reached.
+		int layerMask = 1 << LayerMask.NameToLayer("Environment");
+		Vector3 impactPosition = rayOrigin + rayDirection * num;
+		Vector3 impactNormal = -rayDirection;
+		bool flag = false;
+		RaycastHit hitInfo;
+		if (Physics.Raycast(rayOrigin, rayDirection, out hitInfo, num, layerMask))
+		{
+			impactPosition = hitInfo.point;
+			impactNormal = hitInfo.normal;
+			flag = true;
+		}
+
+		if (_shockRifleTracer == null)
+		{
+			_shockRifleTracer = new ShockRifleTracer(base.transform);
+		}
+		_shockRifleTracer.TracerMaterial = ShockRifleTracerMaterial;
+		_shockRifleTracer.StartColor = ShockRifleTracerStartColor;
+		_shockRifleTracer.EndColor = ShockRifleTracerEndColor;
+		_shockRifleTracer.StartWidth = ShockRifleTracerStartWidth;
+		_shockRifleTracer.EndWidth = ShockRifleTracerEndWidth;
+		_shockRifleTracer.FadeTime = ShockRifleTracerFadeTime;
+		_shockRifleTracer.Show(getShockRifleMuzzlePosition(), impactPosition);
+
+		if (flag && ShockRifleImpactVFX != null)
+		{
+			GameObject gameObject = UnityEngine.Object.Instantiate(ShockRifleImpactVFX, impactPosition, Quaternion.LookRotation(impactNormal));
+			UnityEngine.Object.Destroy(gameObject, 3f);
+		}
+	}
+
+	// ShockRifleStats.MuzzlePoint is unassigned on the prefab, so fall back to the rifle model
+	// itself - the tracer still leaves the gun rather than the player's face. Assigning a muzzle
+	// transform in the inspector makes it start exactly at the barrel.
+	private Vector3 getShockRifleMuzzlePosition()
+	{
+		if (ShockRifleStats.MuzzlePoint != null)
+		{
+			return ShockRifleStats.MuzzlePoint.position;
+		}
+		if (!_shockRifleModelSearched)
+		{
+			_shockRifleModelSearched = true;
+			_shockRifleModel = findWeaponModelTransform(WeaponType.ShockRifle);
+		}
+		return ((_shockRifleModel != null) ? _shockRifleModel.position : AimCameraPosition.position);
+	}
+
+	private Transform findWeaponModelTransform(WeaponType weaponType)
+	{
+		for (int i = 0; i < WeaponModels.Length; i++)
+		{
+			if (WeaponModels[i] != null && WeaponModels[i].WeaponType == weaponType)
+			{
+				return WeaponModels[i].transform;
+			}
+		}
+		return null;
 	}
 
 	private void spawnCrossbowBolt(int commandServerFrame)
@@ -1653,6 +1773,11 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 			}
 			return;
 		}
+		if ((int)attackDirection == ShockRifleAttackDirection)
+		{
+			renderShockRifleShot();
+			return;
+		}
 		if (HasCrossbow())
 		{
 			UpperAnimator.SetTrigger("FireCrossBow");
@@ -1671,10 +1796,9 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		}
 		else if (HasShockRifle())
 		{
-			// Borrowing the launcher's fire animation and the pistol's report until the rifle
-			// gets its own clip and sound.
-			Singleton<AudioManager>.Instance.PlayClipAtTransform(Singleton<AudioLibrary>.Instance.PistolFire, UpperAnimator.transform);
-			UpperAnimator.SetTrigger("FireSnowball");
+			// Reached on a predicting client, which fires before the owner has stamped the
+			// AttackDirection marker above.
+			renderShockRifleShot();
 		}
 		else if (HasLightningGun())
 		{
@@ -1825,6 +1949,10 @@ public class SantaCharacterController : EntityEventListener<ISantaState>
 		// These run for every copy of the character, not just the local one, so other players can
 		// see the wind-up and the beam too.
 		updateGrenadeWindupPose();
+		if (_shockRifleTracer != null)
+		{
+			_shockRifleTracer.Tick();
+		}
 		UpdateLightningBeam(isFiringLightningForDisplay());
 
 		if (HasBeenUnderLocalControl())

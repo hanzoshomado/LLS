@@ -33,7 +33,6 @@ public class GrenadeArcPreview
     private readonly Vector3[] _points = new Vector3[MaxPoints];
     private readonly RaycastHit[] _hitBuffer = new RaycastHit[16];
     private readonly Transform _parent;
-    private static Material _fallbackMaterial;
     private int _pointCount;
     private LineRenderer _arc;
     private LineRenderer _marker;
@@ -234,7 +233,8 @@ public class GrenadeArcPreview
 
     private void ApplyStyle(LineRenderer lineRenderer)
     {
-        Material material = ((ArcMaterial != null) ? ArcMaterial : ResolveFallbackMaterial());
+        // No material assigned in the inspector, so fall back to whatever unlit shader exists.
+        Material material = ((ArcMaterial != null) ? ArcMaterial : UnlitLineMaterial.Resolve());
         if (material != null && lineRenderer.sharedMaterial != material)
         {
             lineRenderer.sharedMaterial = material;
@@ -245,30 +245,4 @@ public class GrenadeArcPreview
         lineRenderer.endWidth = ArcWidth;
     }
 
-    private static Material ResolveFallbackMaterial()
-    {
-        if (_fallbackMaterial != null)
-        {
-            return _fallbackMaterial;
-        }
-        // No material assigned in the inspector, so find any unlit vertex-coloured shader that is
-        // actually present. If none of them are, the LineRenderer keeps its own default material.
-        string[] candidates = new string[]
-        {
-            "Sprites/Default",
-            "Particles/Standard Unlit",
-            "Legacy Shaders/Particles/Alpha Blended",
-            "Unlit/Color"
-        };
-        for (int i = 0; i < candidates.Length; i++)
-        {
-            Shader shader = Shader.Find(candidates[i]);
-            if (shader != null)
-            {
-                _fallbackMaterial = new Material(shader);
-                return _fallbackMaterial;
-            }
-        }
-        return null;
-    }
 }
